@@ -1,9 +1,12 @@
 import React from "react";
+import AuthForm from "@/components/AuthForm";
 
-type Props = {};
-
-function page({}: Props) {
-  return <div>page</div>;
+function Login({ type }: { type: string }) {
+  return (
+    <div className="flex items-center justify-center">
+      <AuthForm type="Login" />
+    </div>
+  );
 }
 
-export default page;
+export default Login;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   ListOrdered,
@@ -9,23 +9,38 @@ import {
   Bell,
 } from "lucide-react";
 import { Nav } from "@/components/nav";
-// import { useWindowWidth } from "@react-hook/window-size";
+import Image from "next/image";
+import { useWindowWidth } from "@react-hook/window-size";
+import { set } from "react-hook-form";
 
 export default function SideNavbar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  //   const onlyWidth = useWindowWidth();
-  //   const mobileWidth = onlyWidth < 768;
+  const [isMobile, setIsMobile] = useState(false);
+  const mobileWidth = useWindowWidth();
+
+  useEffect(() => {
+    console.log("this is running bruh");
+    setIsMobile(mobileWidth < 768);
+  });
+
   return (
-    <div className="relative min-w-[80px] border-r px-3  pb-5 pt-10">
+    <div className="flex flex-col items-center relative min-w-[80px] border-r px-3  pb-5 pt-10 ">
+      <Image
+        src="/assets/Logo.png"
+        width={80}
+        height={80}
+        alt="Logo"
+        className="size-[24px max-xl:size-14"
+      />
       <Nav
-        isCollapsed={false}
+        isCollapsed={isMobile ? true : isCollapsed}
         links={[
           {
             title: "DASHBOARD",
             label: "",
             icon: LayoutDashboard,
             variant: "ghost",
-            href: "/dashboard",
+            href: "/",
           },
           {
             title: "ORDER",

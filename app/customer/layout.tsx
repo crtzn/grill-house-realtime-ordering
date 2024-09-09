@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard",
+  title: "Customer Side",
   description: "Admin Dashboard",
 };
 
@@ -14,7 +12,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="min-h-screen w-full flex">
+          <div className="p-8 w-full">{children}</div>
+        </div>
+      </body>
     </html>
   );
 }
