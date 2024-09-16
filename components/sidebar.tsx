@@ -19,7 +19,6 @@ export default function SideNavbar() {
   const mobileWidth = useWindowWidth();
 
   useEffect(() => {
-    console.log("this is running bruh");
     setIsMobile(mobileWidth < 768);
   });
 

@@ -36,11 +36,12 @@ const data = [
 ];
 
 export default function CustomerChart({}: Props) {
+  const RecentYear = new Date().getFullYear();
   return (
     <CardContent>
       <CardHeader>
         <CardTitle className="text-2xl font-semibold">Customer</CardTitle>
-        <CardDescription>January - December 2024</CardDescription>
+        <CardDescription>January - December {RecentYear}</CardDescription>
       </CardHeader>
       <ResponsiveContainer width="100%" height={300}>
         <BarGraph data={data}>

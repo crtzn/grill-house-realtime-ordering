@@ -15,10 +15,6 @@ export default function page({}: Props) {
         <div className="flex gap-2">
           <div>
             <NewOrderBtn />
-            {/* <Button className="gap-2 cursor-click">
-              <CirclePlus size={24} />
-              <p>New Order</p>
-            </Button> */}
           </div>
           <div>
             <Button className="gap-3 cursor-click">
