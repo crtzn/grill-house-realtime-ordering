@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "./ui/input";
+import { Input } from "@/components/ui/input";
 
 export const NewOrderBtn = () => {
   return (

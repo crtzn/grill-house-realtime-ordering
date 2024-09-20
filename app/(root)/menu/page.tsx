@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { PlusCircle } from "lucide-react";
+import React, { use, useEffect, useState } from "react";
+import { PlusCircle, Edit, Trash, Radio } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,42 +12,98 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import Header from "@/components/HeaderBox";
-import supabase from "@/lib/supabase";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { createClient } from "@supabase/supabase-js";
+import { Label } from "@/components/ui/label";
+import supabase from "@/lib/AnonSupabase";
+import InputForm from "@/components/menu/components/InputForm";
+import SelectPackage from "@/components/menu/components/SelectPackage";
 
 interface MenuItem {
   id: number;
   name: string;
   description: string;
-  image: string;
+  imageSrc: string;
 }
 
 const MenuPage: React.FC = () => {
+  const [image, setImage] = useState("https://placehold.co/600x400");
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [fetchError, setFetchError] = useState<any>(null);
-  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [newItem, setNewItem] = useState({
     name: "",
     description: "",
-    image: "",
+    imageSrc: "https://placehold.co/600x400",
   });
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
 
   useEffect(() => {
-    const fetchMenu = async () => {
-      const { data, error } = await supabase.from("menu").select();
-      if (error) {
-        setFetchError(error);
-        setMenu([]);
-      } else {
-        setMenu(data);
+    fetchMenuItems();
+
+    const channel = supabase
+      .channel("clasica")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "clasica" },
+        (payload) => {
+          console.log("New item added:", payload.new);
+          setMenuItems((prev) => [...prev, payload.new as MenuItem]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "clasica" },
+        (payload) => {
+          console.log("Item deleted:", payload.old);
+          setMenuItems((prev) =>
+            prev.filter((item) => item.id !== payload.old.id)
+          );
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchMenuItems = async () => {
+    const { data, error } = await supabase.from("clasica").select();
+    if (error) {
+      setFetchError(error);
+      setMenuItems([]);
+    } else {
+      setMenuItems(data);
+      setFetchError(null);
+    }
+  };
+
+  const handleAddMenuItem = async () => {
+    try {
+      if (!newItem.name || !newItem.description) {
+        setFetchError("Please fill in all fields");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("clasica")
+        .insert([newItem])
+        .select();
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setMenuItems((prev) => [...prev, data[0] as MenuItem]);
+        setNewItem({ name: "", description: "", imageSrc: "" });
+        setIsDialogOpen(false);
         setFetchError(null);
       }
-    };
-
-    fetchMenu();
-  }, []); // Empty dependency array means this effect runs once on mount
+    } catch (error: any) {
+      console.error("Error adding new menu item:", error);
+      setFetchError(error.message);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -56,122 +112,131 @@ const MenuPage: React.FC = () => {
     setNewItem((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewItem((prev) => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+  const handleDeleteMenuItem = async (id: number) => {
+    // Accept 'id' as a parameter
+    const { data, error } = await supabase
+      .from("clasica")
+      .delete()
+      .eq("id", id); // Use the passed 'id' here
+
+    if (error) {
+      console.log("Error deleting item:", error);
+      setFetchError(error.message);
+    } else {
+      console.log("Deleted item:", data);
+      // Optionally update the local state if needed
+      setMenuItems((prev) => prev.filter((item) => item.id !== id)); // Update local state
     }
-  };
-
-  const handleAddMenuItem = () => {
-    setMenu((prev) => [...prev, { ...newItem, id: Date.now() }]);
-    setNewItem({ name: "", description: "", image: "" });
-  };
-
-  const handleEditItem = async () => {
-    // Update the item in the database
-    // Then update the item in the local state
-  };
-
-  const handleDeleteItem = async () => {
-    // Delete the item from the database
-    // Then remove the item from the local state
   };
 
   return (
     <div className="p-8">
       <Header title="Menu" />
       <div className="flex items-center justify-between">
-        <RadioGroup>
-          <div className="flex gap-3">
-            <div>
-              <RadioGroupItem value="main" />
-              <Label htmlFor="main">Main</Label>
-            </div>
-            <div>
-              <RadioGroupItem value="sides" />
-              <Label htmlFor="sides">Sides</Label>
-            </div>
-            <div>
-              <RadioGroupItem value="drinks" />
-              <Label htmlFor="drinks">Drinks</Label>
-            </div>
-          </div>
-        </RadioGroup>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="mb-4">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Menu Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] bg-[#f2f2f2]">
-            <DialogHeader>
-              <DialogTitle>Add New Menu Item</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input
+        <div className="choose-package">
+          <SelectPackage />
+        </div>
+        <div className="trigger-section">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add New Menu
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-white">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingItem ? "Edit Menu Item" : "Add New Menu Item"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div>
+                  <Label
+                    htmlFor="picture"
+                    className="flex flex-col justify-center items-center cursor-pointer h-auto border-2 border-dashed border-black rounded-lg p-4"
+                  >
+                    {newItem.imageSrc ? (
+                      <img
+                        src={newItem.imageSrc}
+                        alt={newItem.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        <p>Add picture</p>
+                      </>
+                    )}
+                  </Label>
+                  <Input
+                    id="picture"
+                    type="file"
+                    className="hidden"
+                    // onChange={handleImageUpload}
+                  />
+                </div>
+                <InputForm
+                  label="Name"
                   id="name"
                   name="name"
-                  value={newItem.name}
+                  value={editingItem ? editingItem.name : newItem.name}
                   onChange={handleInputChange}
-                  className="col-span-3"
                 />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="description" className="text-right">
-                  Description
-                </Label>
-                <Textarea
+                {fetchError && (
+                  <p className="text-red-500">Error: {fetchError}</p>
+                )}
+                <InputForm
                   id="description"
+                  label="Description"
                   name="description"
-                  value={newItem.description}
+                  value={
+                    editingItem ? editingItem.description : newItem.description
+                  }
                   onChange={handleInputChange}
-                  className="col-span-3"
                 />
+                <Button onClick={handleAddMenuItem}>
+                  Add Item
+                  {/* {editingItem ? "Update Items" : "Add Item"} */}
+                </Button>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="image" className="text-right">
-                  Image
-                </Label>
-                <Input
-                  id="image"
-                  name="image"
-                  type="file"
-                  onChange={handleImageUpload}
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-            <Button onClick={handleAddMenuItem}>Add Item</Button>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-6"></div>
-      {fetchError && <p>Error: {fetchError.message}</p>}
-      {menu ? (
+      {menuItems ? (
         <ul>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
-            {menu.map((item) => (
+          <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8 mt-6">
+            {menuItems.map((item) => (
               <div
                 key={item.id}
                 className="border rounded-lg p-4 bg-white shadow"
               >
                 <img
-                  src={item.image}
+                  src={image}
                   alt={item.name}
                   className="w-full h-48 object-cover mb-4 rounded"
                 />
-                <h2 className="text-xl font-semibold mb-2">{item.name}</h2>
-                <p className="text-gray-600">{item.description}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold mb-2">{item.name}</h2>
+                    <p className="text-gray-600">{item.description}</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={() => {
+                        setEditingItem(item);
+                        setIsDialogOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button onClick={() => handleDeleteMenuItem(item.id)}>
+                      Delete
+                    </Button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
