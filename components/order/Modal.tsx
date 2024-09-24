@@ -23,7 +23,7 @@ export const NewOrderBtn = () => {
       <DialogTrigger asChild>
         <Button variant="default">New Order</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-[#f2f2f2]">
+      <DialogContent className="sm:max-w-[40rem] bg-[#f2f2f2]">
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
           {/* Device Available */}
@@ -42,9 +42,10 @@ export const NewOrderBtn = () => {
         </DialogDescription>
         <Input type="" placeholder="Max-5" />
         <div className="flex gap-4 justify-center">
-          <Button>199</Button>
-          <Button>299</Button>
-          <Button>399</Button>
+          <Button>Clasica</Button>
+          <Button>Clasica Combo</Button>
+          <Button>Suprema</Button>
+          <Button>Suprema Combo</Button>
         </div>
         <Button type="submit">Create Order</Button>
       </DialogContent>

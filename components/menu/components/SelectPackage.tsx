@@ -6,10 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import ClasicaMenu from "@/app/(root)/menu/components/clasica";
-import ClasicaComboMenu from "@/app/(root)/menu/components/clasicaCombo";
-import SupremaMenu from "@/app/(root)/menu/components/suprema";
-import SupremaComboMenu from "@/app/(root)/menu/components/supremaCombo";
+import ClasicaMenu from "@/app/admin/(root)/menu/components/packages/clasica";
+import ClasicaComboMenu from "@/app/admin/(root)/menu/components/packages/clasicaCombo";
+import SupremaMenu from "@/app/admin/(root)/menu/components/packages/suprema";
+import SupremaComboMenu from "@/app/admin/(root)/menu/components/packages/supremaCombo";
 
 function SelectPackage() {
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
