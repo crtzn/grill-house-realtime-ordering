@@ -1,6 +1,5 @@
 "use client";
 import { cn } from "@/lib/utils";
-
 import React, { useState } from "react";
 import {
   Card,
@@ -10,31 +9,31 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-interface MenuName {
+interface GalleryProps {
   name: string;
   description: string;
+  quantity: number;
+  onAddToOrder: () => void;
 }
 
-function Gallery({ name, description }: MenuName) {
+function Gallery({ name, description, onAddToOrder }: GalleryProps) {
   const [menuName, setMenuName] = useState("");
 
   return (
-    <div>
-      <div>
-        <Card>
-          <CardContent>
-            <img
-              src="https://placehold.co/600x400"
-              alt="menu"
-              width={600}
-              height={400}
-              className="rounded-xl"
-            />
-            <CardTitle>{name}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </CardContent>
-        </Card>
-      </div>
+    <div onClick={onAddToOrder}>
+      <Card>
+        <CardContent>
+          <img
+            src="https://placehold.co/600x400"
+            alt="menu"
+            width={600}
+            height={400}
+            className="rounded-xl"
+          />
+          <CardTitle>{name}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardContent>
+      </Card>
     </div>
   );
 }

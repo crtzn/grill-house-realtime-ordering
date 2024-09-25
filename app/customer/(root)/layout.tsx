@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import GetOrder from "@/components/order/GetOrder";
 
 export const metadata: Metadata = {
   title: "Customer",
@@ -16,7 +15,6 @@ export default function RootLayout({
       <body>
         <div className="min-h-screen w-full flex">
           <div className="p-8 w-full">{children}</div>
-          <GetOrder />
         </div>
       </body>
     </html>
