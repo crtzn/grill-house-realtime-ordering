@@ -34,15 +34,15 @@ const MenuPage: React.FC = () => {
     description: "",
     imageSrc: "https://placehold.co/600x400",
   });
+  const [activeTable, setActiveTable] = useState<string>("clasica_menu");
 
   useEffect(() => {
     fetchMenuItems();
-
     const channel = supabase
-      .channel("clasica")
+      .channel(activeTable)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "clasica" },
+        { event: "*", schema: "public", table: activeTable },
         (payload) => {
           if (payload.eventType === "INSERT") {
             setMenuItems((prev) => [...prev, payload.new as MenuItem]);
@@ -64,10 +64,10 @@ const MenuPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeTable]);
 
   const fetchMenuItems = async () => {
-    const { data, error } = await supabase.from("clasica").select();
+    const { data, error } = await supabase.from(activeTable).select();
 
     if (error) {
       setFetchError(error.message);
@@ -87,13 +87,14 @@ const MenuPage: React.FC = () => {
       }
 
       const { data, error } = await supabase
-        .from("clasica")
+        .from(activeTable)
         .insert([newItem])
         .select();
 
       if (error) throw error;
 
       if (data && data.length > 0) {
+        setMenuItems((prev) => [...prev, data[0]]);
         setNewItem({
           name: "",
           description: "",
@@ -113,7 +114,7 @@ const MenuPage: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from("clasica")
+        .from(activeTable)
         .update({
           name: editingItem.name,
           description: editingItem.description,
@@ -124,6 +125,11 @@ const MenuPage: React.FC = () => {
 
       if (error) throw error;
 
+      setMenuItems((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id ? { ...item, ...data[0] } : item
+        )
+      );
       setEditingItem(null);
       setIsDialogOpen(false);
       setFetchError(null);
@@ -145,37 +151,13 @@ const MenuPage: React.FC = () => {
   };
 
   const handleDeleteMenuItem = async (id: number) => {
-    const { error } = await supabase.from("clasica").delete().eq("id", id);
+    const { error } = await supabase.from(activeTable).delete().eq("id", id);
 
     if (error) {
       console.log("Error deleting item:", error);
       setFetchError(error.message);
-    }
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const { data, error } = await supabase.storage
-        .from("menu-images")
-        .upload(fileName, file);
-
-      if (error) {
-        console.error("Error uploading image:", error);
-        setFetchError(error.message);
-      } else {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("menu-images").getPublicUrl(fileName);
-
-        if (editingItem) {
-          setEditingItem({ ...editingItem, imageSrc: publicUrl });
-        } else {
-          setNewItem((prev) => ({ ...prev, imageSrc: publicUrl }));
-        }
-      }
+    } else {
+      setMenuItems((prev) => prev.filter((item) => item.id !== id));
     }
   };
 
@@ -183,9 +165,33 @@ const MenuPage: React.FC = () => {
     <div className="p-8">
       <Header title="Menu" />
       <div className="flex items-center justify-between">
-        <div className="choose-package">
-          <p>Select Package here</p>
+        <div className="flex justify-between">
+          <div className="flex space-x-4">
+            {[
+              "clasica_menu",
+              "clasica_combo_menu",
+              "suprema_menu",
+              "suprema_combo_menu",
+            ].map((table) => (
+              <Button
+                key={table}
+                onClick={() => {
+                  setActiveTable(table);
+                  setIsLoading(true); // Trigger loading state
+                  fetchMenuItems(); // Fetch new items
+                }}
+                className={`${
+                  activeTable === table ? "bg-black-300" : "bg-gray-200"
+                }`}
+              >
+                {table
+                  .replace(/_/g, " ")
+                  .replace(/^\w/, (c) => c.toUpperCase())}
+              </Button>
+            ))}
+          </div>
         </div>
+        <div className="choose-package"></div>
         <div className="trigger-section">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -223,12 +229,7 @@ const MenuPage: React.FC = () => {
                       className="h-full w-full object-cover"
                     />
                   </Label>
-                  <Input
-                    id="picture"
-                    type="file"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                  />
+                  <Input id="picture" type="file" className="hidden" />
                 </div>
                 <InputForm
                   label="Name"
