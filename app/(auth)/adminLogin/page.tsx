@@ -59,7 +59,10 @@ const Login: React.FC = () => {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full">
+            <Button
+              type="submit"
+              className="w-full bg-black text-white active:text-black hover:bg-gray-500"
+            >
               Login
             </Button>
           </form>
