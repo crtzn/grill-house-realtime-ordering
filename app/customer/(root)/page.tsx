@@ -1,57 +1,71 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Gallery from "@/components/order/Gallery";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus } from "lucide-react";
 import supabase from "@/lib/supabaseClient";
+import Header from "@/components/HeaderBox";
+import { getCookie } from "cookies-next";
+
+interface DeviceStatus {
+  device_id: string;
+  quantity: number;
+  package_order: string;
+  device_name: string;
+  is_active: boolean;
+}
 
 interface MenuItem {
+  id: number;
   name: string;
   description: string;
+  imageSrc: string;
   quantity: number;
 }
 
-// sample data
-const MenuItems = [
-  {
-    name: "Pork Jawl",
-    description: "Lorem ipsum dolor sit amet.",
-    quantity: 0,
-  },
-  { name: "Rice", description: "Lorem ipsum dolor sit amet.", quantity: 0 },
-  {
-    name: "Pork Beef",
-    description: "Lorem ipsum dolor sit amet.",
-    quantity: 0,
-  },
-  {
-    name: "Beef Jawl",
-    description: "Lorem ipsum dolor sit amet.",
-    quantity: 0,
-  },
-  {
-    name: "Test Jawl",
-    description: "Lorem ipsum dolor sit amet.",
-    quantity: 0,
-  },
-  {
-    name: "Ewan Jawl",
-    description: "Lorem ipsum dolor sit amet.",
-    quantity: 0,
-  },
-  {
-    name: "Siguro Jawl",
-    description: "Lorem ipsum dolor sit amet.",
-    quantity: 0,
-  },
-];
-
-//fetch the package_id from supabase
-//showOrder, implement handlers how I pass items that order to the showOrder?
-function page() {
+function Page() {
   const [orderItems, setOrderItems] = useState<MenuItem[]>([]);
+  const [device, setDevice] = useState<DeviceStatus | null>(null);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [quantity, setQuantity] = useState(50);
+  const [packageOrder, setPackageOrder] = useState<string>("");
+
+  useEffect(() => {
+    const fetchDeviceInfo = async () => {
+      const deviceId = getCookie("device_id");
+      if (deviceId) {
+        const { data, error } = await supabase
+          .from("device_table")
+          .select()
+          .eq("device_id", deviceId)
+          .single();
+        if (error) {
+          console.error("Error fetching device:", error);
+        } else {
+          setDevice(data);
+          setPackageOrder(data.package_order);
+        }
+      }
+    };
+
+    fetchDeviceInfo();
+  }, []);
+
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      if (packageOrder) {
+        const { data, error } = await supabase.from(packageOrder).select();
+        if (error) {
+          console.error("Error fetching menu items:", error);
+        } else {
+          setMenuItems(data);
+        }
+      }
+    };
+
+    fetchMenuItems();
+  }, [packageOrder]);
 
   const addToOrder = (item: MenuItem) => {
     setOrderItems((prevOrderItems) => {
@@ -71,9 +85,59 @@ function page() {
     });
   };
 
+  const submitOrder = async () => {
+    if (!device) {
+      console.error("Device information not available");
+      return;
+    }
+
+    const orderData = {
+      device_id: device.device_id,
+      order_items: orderItems.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+      })),
+      order_date: new Date().toISOString(),
+      status: "pending",
+    };
+
+    const { data, error } = await supabase.from("orders").insert(orderData);
+
+    if (error) {
+      console.error("Error submitting order:", error);
+    } else {
+      console.log("Order submitted successfully:", data);
+      // Clear the order items after successful submission
+      setOrderItems([]);
+    }
+  };
+
+  const incrementQuantity = (itemName: string) => {
+    setOrderItems((prevItems) =>
+      prevItems.map((item) =>
+        item.name === itemName
+          ? { ...item, quantity: item.quantity + 50 }
+          : item
+      )
+    );
+  };
+
+  const decrementQuantity = (itemName: string) => {
+    setOrderItems((prevItems) =>
+      prevItems
+        .map((item) =>
+          item.name === itemName && item.quantity > 50
+            ? { ...item, quantity: item.quantity - 50 }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
   return (
     <div className="min-h-[100%] w-full flex">
       <div className="flex flex-col gap-5 w-full mr-5">
+        <Header title={device ? device.device_name : "Loading..."} />
         <div className="flex gap-5">
           <Button>Main</Button>
           <Button>Sides</Button>
@@ -81,7 +145,7 @@ function page() {
           <Button>Utilities</Button>
         </div>
         <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8 mt-6">
-          {MenuItems.map((item, index) => (
+          {menuItems.map((item, index) => (
             <Gallery
               key={index}
               name={item.name}
@@ -93,8 +157,6 @@ function page() {
         </div>
       </div>
 
-      {/* so in this side nag state ako ng orderItem.. para yun ang I print. so basically
- naging array siya para once nag add ako ng item. sa sidebar na to will show the list of order fc */}
       {/* Sidebar */}
       <div className="w-96 bg-gray-200 p-5 border-1 border-gray-300 relative ">
         <h1>Order List</h1>
@@ -106,15 +168,18 @@ function page() {
             >
               <p>{item.name}</p>
               <div className="flex justify-center items-center gap-4">
-                <Minus />
-                <p>{item.quantity}</p>
-                <Plus />
+                <Minus onClick={() => decrementQuantity(item.name)} />
+                <p>{item.quantity}g</p>
+                <Plus onClick={() => incrementQuantity(item.name)} />
               </div>
             </div>
           ))}
         </div>
         <div className="absolute bottom-0 left-0 w-full">
-          <Button className="bg-green-400 w-full hover:bg-green-400">
+          <Button
+            className="bg-green-400 w-full hover:bg-green-400"
+            onClick={submitOrder}
+          >
             Order
           </Button>
         </div>
@@ -123,19 +188,4 @@ function page() {
   );
 }
 
-export default page;
-
-// task need to finish...
-// ------- front-end side --------
-// 1. need ko mag work yung once nag click si customer ng gallery item // done fuck
-// will automatic appear sa sidebar // done fck
-// 2. need ko mag work yung increment and decrement ng quantity //inprogress
-// ----- if all goods na yung mga yan -----
-// ----- back-end side --------
-// next na need mag work is yung sa back-end side... lke storing the order
-// of the customer to the database... so that the admin can see the order of the
-// customer
-
-// ---problem ---
-// nag spam yung mga order..:>
-// so need ko lagyan ng limit
+export default Page;
