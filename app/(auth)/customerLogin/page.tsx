@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { set } from "react-hook-form";
-import { SubmitButton } from "./submit-button";
 import { setCookie } from "cookies-next";
 
 const LoginPage: React.FC = () => {
@@ -49,7 +48,7 @@ const LoginPage: React.FC = () => {
                 placeholder="Enter Device ID"
                 className="border h-[2rem] p-2 focus:outline-none"
               />
-              <Button className="bg-black text-white hover:bg-gray-500 hover:text-white">
+              <Button className="bg-black text-white hover:bg-gray-500 hover:text-black">
                 Submit
               </Button>
             </form>
