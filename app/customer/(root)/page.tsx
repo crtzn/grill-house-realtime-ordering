@@ -32,40 +32,92 @@ function Page() {
   const [packageOrder, setPackageOrder] = useState<string>("");
 
   useEffect(() => {
-    const fetchDeviceInfo = async () => {
-      const deviceId = getCookie("device_id");
-      if (deviceId) {
-        const { data, error } = await supabase
-          .from("device_table")
-          .select()
-          .eq("device_id", deviceId)
-          .single();
-        if (error) {
-          console.error("Error fetching device:", error);
-        } else {
-          setDevice(data);
-          setPackageOrder(data.package_order);
-        }
-      }
-    };
+    const deviceId = getCookie("device_id");
+    if (deviceId) {
+      fetchDeviceInfo(deviceId);
 
-    fetchDeviceInfo();
+      const deviceChannel = supabase
+        .channel("device_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "device_table",
+            filter: `device_id=eq.${deviceId}`,
+          },
+          (payload) => {
+            console.log("Device change received!", payload);
+            if (
+              payload.eventType === "UPDATE" ||
+              payload.eventType === "INSERT"
+            ) {
+              setDevice(payload.new as DeviceStatus);
+              setPackageOrder(payload.new.package_order);
+            } else if (payload.eventType === "DELETE") {
+              setDevice(null);
+              setPackageOrder("");
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(deviceChannel);
+      };
+    }
   }, []);
 
   useEffect(() => {
-    const fetchMenuItems = async () => {
-      if (packageOrder) {
-        const { data, error } = await supabase.from(packageOrder).select();
-        if (error) {
-          console.error("Error fetching menu items:", error);
-        } else {
-          setMenuItems(data);
-        }
-      }
-    };
+    if (packageOrder) {
+      fetchMenuItems();
 
-    fetchMenuItems();
+      const menuChannel = supabase
+        .channel("menu_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: packageOrder,
+          },
+          (payload) => {
+            console.log("Menu change received!", payload);
+            fetchMenuItems();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(menuChannel);
+      };
+    }
   }, [packageOrder]);
+
+  const fetchDeviceInfo = async (deviceId: string) => {
+    const { data, error } = await supabase
+      .from("device_table")
+      .select()
+      .eq("device_id", deviceId)
+      .single();
+    if (error) {
+      console.error("Error fetching device:", error);
+    } else {
+      setDevice(data);
+      setPackageOrder(data.package_order);
+    }
+  };
+
+  const fetchMenuItems = async () => {
+    if (packageOrder) {
+      const { data, error } = await supabase.from(packageOrder).select();
+      if (error) {
+        console.error("Error fetching menu items:", error);
+      } else {
+        setMenuItems(data);
+      }
+    }
+  };
 
   const addToOrder = (item: MenuItem) => {
     setOrderItems((prevOrderItems) => {
