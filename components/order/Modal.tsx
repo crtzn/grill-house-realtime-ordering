@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,8 +18,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import supabase from "@/lib/supabaseClient";
+
+interface DeviceStatus {
+  device_id: string;
+  quantity: number;
+  package_order: string;
+  device_name: string;
+  is_active: boolean;
+}
 
 export const NewOrderBtn = () => {
+  const [devices, setDevices] = useState<DeviceStatus[]>([]);
+
+  const fetchDevices = async () => {
+    const { data, error } = await supabase.from("device_table").select();
+    if (error) {
+      console.error("Error fetching device:", error);
+    } else {
+      console.log("Device data:", data);
+      setDevices(data);
+    }
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -32,7 +55,7 @@ export const NewOrderBtn = () => {
           <div>
             <Select>
               <SelectTrigger>
-                <SelectValue placeholder="Select Customer"></SelectValue>
+                <SelectValue placeholder="Choose Table Available"></SelectValue>
               </SelectTrigger>
               <SelectContent className="bg-white">
                 <SelectItem value="test">test</SelectItem>

@@ -17,16 +17,7 @@ export default function page() {
     <div className="flex flex-col gap-5 w-full">
       <div className="flex justify-between">
         <Header title="Order" />
-        <div className="flex gap-2">
-          <div>
-            <NewOrderBtn />
-          </div>
-          <div>
-            <Button className="gap-3 cursor-click">
-              <p>Order lists</p>
-            </Button>
-          </div>
-        </div>
+        <NewOrderBtn />
       </div>
       <OrderTable />
     </div>
