@@ -7,6 +7,7 @@ import { Minus, Plus } from "lucide-react";
 import supabase from "@/lib/supabaseClient";
 import Header from "@/components/HeaderBox";
 import { getCookie } from "cookies-next";
+import Swal from "sweetalert2";
 
 interface DeviceStatus {
   device_id: string;
@@ -157,8 +158,18 @@ function Page() {
 
     if (error) {
       console.error("Error submitting order:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Oops...",
+        text: "Something went wrong! Please try again.",
+      });
     } else {
       console.log("Order submitted successfully:", data);
+      Swal.fire({
+        icon: "success",
+        title: "Order Submitted!",
+        text: "Your order has been successfully placed.",
+      });
       // Clear the order items after successful submission
       setOrderItems([]);
     }
