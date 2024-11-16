@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Gallery from "@/components/order/Gallery";
+import Gallery from "@/components/admin/order/Gallery";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus } from "lucide-react";
 import supabase from "@/lib/supabaseClient";

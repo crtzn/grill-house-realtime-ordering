@@ -48,7 +48,7 @@ export function Nav({ links, isCollapsed }: NavProps) {
                       }),
                       "h-9 w-9",
                       link.variant === "default" &&
-                        "dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white"
+                        "dark:bg-muted dark:text-muted-foreground  dark:hover:text-white"
                     )}
                   >
                     <link.icon className="h-4 w-4" />
@@ -77,7 +77,7 @@ export function Nav({ links, isCollapsed }: NavProps) {
                     size: "sm",
                   }),
                   link.variant === "default" &&
-                    "dark:bg-muted dark:text-white dark:hover:bg-muted dark:hover:text-white",
+                    "dark:bg-muted dark:text-white hover:bg-[#383838]  hover:text-white",
                   "justify-start"
                 )}
               >
@@ -88,7 +88,7 @@ export function Nav({ links, isCollapsed }: NavProps) {
                     className={cn(
                       "ml-auto",
                       link.variant === "default" &&
-                        "text-background dark:text-white"
+                        "text-background dark:text-white "
                     )}
                   >
                     {link.label}

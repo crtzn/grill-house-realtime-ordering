@@ -29,6 +29,7 @@ export default function SideNavbar() {
         width={80}
         height={80}
         alt="Logo"
+        priority
         className="size-[24px max-xl:size-14"
       />
       <Nav
