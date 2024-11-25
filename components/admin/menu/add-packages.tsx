@@ -3,13 +3,10 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { PackageType, MenuItem } from "@/app/types";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -21,62 +18,85 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { MenuItem } from "@/app/types";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
+import supabase from "@/lib/supabaseClient";
 
 interface AddPackageFormProps {
-  onSubmit: (newPackage: Omit<PackageType, "id">) => void;
   menuItems: MenuItem[];
+  onSubmit: () => void;
 }
 
 export default function AddPackageForm({
-  onSubmit,
   menuItems,
+  onSubmit,
 }: AddPackageFormProps) {
   const [open, setOpen] = useState(false);
-  const [newPackage, setNewPackage] = useState<Omit<PackageType, "id">>({
+  const [newPackage, setNewPackage] = useState({
     name: "",
-    description: "",
-    items: [],
-    is_available: true,
     price: 0,
   });
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(newPackage);
-    setOpen(false);
-    setNewPackage({
-      name: "",
-      description: "",
-      items: [],
-      is_available: true,
-      price: 0,
-    });
-  };
+    try {
+      const { data: packageData, error: packageError } = await supabase
+        .from("packages")
+        .insert({
+          name: newPackage.name,
+          price: newPackage.price,
+          is_available: true,
+        })
+        .select()
+        .single();
 
-  const handleItemToggle = (itemId: string) => {
-    setNewPackage((prev) => ({
-      ...prev,
-      items: prev.items.includes(itemId)
-        ? prev.items.filter((id) => id !== itemId)
-        : [...prev.items, itemId],
-    }));
+      if (packageError) throw packageError;
+
+      if (packageData) {
+        const packageItems = selectedItems.map((itemId) => ({
+          package_id: packageData.id,
+          menu_item_id: itemId,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("package_items")
+          .insert(packageItems);
+
+        if (itemsError) throw itemsError;
+
+        setOpen(false);
+        setNewPackage({ name: "", price: 0 });
+        setSelectedItems([]);
+        onSubmit();
+        router.refresh();
+        toast({
+          title: "Success",
+          description: "Package added successfully",
+        });
+      }
+    } catch (error) {
+      console.error("Error adding package:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add package. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        asChild
-        className="bg-black hover:bg-gray-800 text-white py-7 px-5 rounded-xl"
-      >
-        <Button>Add New Package</Button>
+      <DialogTrigger asChild>
+        <Button className="bg-black hover:bg-gray-800 text-white py-7 px-5 rounded-xl">
+          Add New Package
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-white">
         <DialogHeader>
           <DialogTitle>Add New Package</DialogTitle>
-          <DialogDescription>
-            Create a new package by filling out the information below.
-          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -88,16 +108,6 @@ export default function AddPackageForm({
                 setNewPackage({ ...newPackage, name: e.target.value })
               }
               required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={newPackage.description}
-              onChange={(e) =>
-                setNewPackage({ ...newPackage, description: e.target.value })
-              }
             />
           </div>
           <div className="space-y-2">
@@ -116,24 +126,48 @@ export default function AddPackageForm({
             />
           </div>
           <div className="space-y-2">
-            <Select>
-              <SelectTrigger>Menu Items</SelectTrigger>
-              {menuItems.map((item) => (
-                <SelectContent>
-                  <div key={item.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={item.id}
-                      checked={newPackage.items.includes(item.id || "")}
-                      onCheckedChange={() =>
-                        item.id && handleItemToggle(item.id)
-                      }
-                    />
-                    <Label htmlFor={item.id}>{item.name}</Label>
-                  </div>
-                </SelectContent>
-              ))}
+            <Label htmlFor="menuItems">Menu Items</Label>
+            <Select
+              onValueChange={(value) =>
+                setSelectedItems([...selectedItems, value])
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select menu items" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                {menuItems.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
+          {selectedItems.length > 0 && (
+            <div className="space-y-2">
+              <Label>Selected Items</Label>
+              <ul className="list-disc pl-5">
+                {selectedItems.map((itemId) => (
+                  <li key={itemId}>
+                    {menuItems.find((item) => item.id === itemId)?.name}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setSelectedItems(
+                          selectedItems.filter((id) => id !== itemId)
+                        )
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <Button type="submit">Add Package</Button>
         </form>
       </DialogContent>
