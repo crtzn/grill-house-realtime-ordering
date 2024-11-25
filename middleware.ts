@@ -14,15 +14,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (path.startsWith("/customer")) {
-    const deviceId = request.cookies.get("device_id")?.value;
-    if (!deviceId) {
-      return NextResponse.redirect(new URL("/customerLogin", request.url));
-    }
-
-    return NextResponse.next();
-  }
-
   return NextResponse.next();
 }
 
