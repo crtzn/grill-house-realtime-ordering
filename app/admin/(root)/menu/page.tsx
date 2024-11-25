@@ -1,307 +1,319 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { PlusCircle } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import Header from "@/components/HeaderBox";
-import { Label } from "@/components/ui/label";
 import supabase from "@/lib/supabaseClient";
-import InputForm from "@/components/menu/components/InputForm";
+import AddMenuItemForm from "@/components/admin/menu/add-menu-item-form";
+import AddPackageForm from "@/components/admin/menu/add-packages";
+import EditMenuItemForm from "@/components/admin/menu/edit-menu-item-form";
+import { MenuItemType, PackageType } from "@/app/types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pencil, Trash2, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import Image from "next/image";
+import { toast } from "@/components/ui/use-toast";
 
-interface MenuItem {
-  id: number;
-  name: string;
-  description: string;
-  imageSrc: string;
-}
+type Category = "main" | "side" | "drink" | "all";
 
-const MenuPage: React.FC = () => {
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+export default function MenuPage() {
+  const [menuItems, setMenuItems] = useState<MenuItemType[]>([]);
+  const [packages, setPackages] = useState<PackageType[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category>("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [newItem, setNewItem] = useState({
-    name: "",
-    description: "",
-    imageSrc: "https://placehold.co/600x400",
-  });
-  const [activeTable, setActiveTable] = useState<string>("clasica_menu");
+  const [error, setError] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<MenuItemType | null>(null);
 
-  useEffect(() => {
-    fetchMenuItems();
-    const channel = supabase
-      .channel(activeTable)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: activeTable },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setMenuItems((prev) => [...prev, payload.new as MenuItem]);
-          } else if (payload.eventType === "DELETE") {
-            setMenuItems((prev) =>
-              prev.filter((item) => item.id !== payload.old.id)
-            );
-          } else if (payload.eventType === "UPDATE") {
-            setMenuItems((prev) =>
-              prev.map((item) =>
-                item.id === payload.new.id ? { ...item, ...payload.new } : item
-              )
-            );
-          }
-        }
-      )
-      .subscribe();
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const { data: menuData, error: menuError } = await supabase
+        .from("menu_items")
+        .select("*");
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [activeTable]);
+      const { data: packageData, error: packageError } = await supabase
+        .from("packages")
+        .select("*");
 
-  const fetchMenuItems = async () => {
-    const { data, error } = await supabase.from(activeTable).select();
+      if (menuError) throw menuError;
+      if (packageError) throw packageError;
 
-    if (error) {
-      setFetchError(error.message);
-      setMenuItems([]);
-    } else {
-      setMenuItems(data);
-      setFetchError(null);
+      const validMenuItems =
+        menuData?.map((item) => ({
+          ...item,
+          category: item.category as MenuItemType["category"],
+          is_available: Boolean(item.is_available),
+        })) || [];
+
+      setMenuItems(validMenuItems);
+      setPackages(packageData || []);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
+      toast({
+        title: "Error",
+        description: "Failed to fetch menu data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  const handleAddMenuItem = async () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleEditMenuItem = (item: MenuItemType) => {
+    setEditingItem(item);
+  };
+
+  const handleUpdateMenuItem = async (updatedItem: MenuItemType) => {
     try {
-      if (!newItem.name || !newItem.description) {
-        setFetchError("Please fill in all fields");
+      const { data, error } = await supabase
+        .from("menu_items")
+        .update({
+          name: updatedItem.name,
+          description: updatedItem.description,
+          category: updatedItem.category,
+          image_url: updatedItem.image_url,
+          is_available: updatedItem.is_available,
+        })
+        .eq("id", updatedItem.id)
+        .select();
+
+      if (error) throw error;
+      if (data?.[0]) {
+        setMenuItems(
+          menuItems.map((item) =>
+            item.id === updatedItem.id ? (data[0] as MenuItemType) : item
+          )
+        );
+        setEditingItem(null);
+        toast({
+          title: "Success",
+          description: "Menu item updated successfully.",
+        });
+      }
+    } catch (err) {
+      console.error("Error updating menu item:", err);
+      toast({
+        title: "Error",
+        description: "Failed to update menu item. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteMenuItem = async (id: string) => {
+    try {
+      const { data: packageContents, error: checkError } = await supabase
+        .from("package_items")
+        .select("id")
+        .eq("menu_item_id", id);
+
+      if (checkError) throw checkError;
+
+      if (packageContents && packageContents.length > 0) {
+        toast({
+          title: "Warning",
+          description: "Cannot delete item as it's used in packages.",
+          variant: "destructive",
+        });
         return;
       }
 
-      const { data, error } = await supabase
-        .from(activeTable)
-        .insert([newItem])
-        .select();
+      const { error: deleteError } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("id", id);
 
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setMenuItems((prev) => [...prev, data[0]]);
-        setNewItem({
-          name: "",
-          description: "",
-          imageSrc: "https://placehold.co/600x400",
-        });
-        setIsDialogOpen(false);
-        setFetchError(null);
-      }
-    } catch (error: any) {
-      console.error("Error adding new menu item:", error);
-      setFetchError(error.message);
+      if (deleteError) throw deleteError;
+      setMenuItems(menuItems.filter((item) => item.id !== id));
+      toast({
+        title: "Success",
+        description: "Menu item deleted successfully.",
+      });
+    } catch (err) {
+      console.error("Error deleting menu item:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete menu item. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleUpdateMenuItem = async () => {
-    if (!editingItem) return;
+  const filteredMenuItems =
+    selectedCategory === "all"
+      ? menuItems
+      : menuItems.filter((item) => item.category === selectedCategory);
 
-    try {
-      const { data, error } = await supabase
-        .from(activeTable)
-        .update({
-          name: editingItem.name,
-          description: editingItem.description,
-          imageSrc: editingItem.imageSrc,
-        })
-        .eq("id", editingItem.id)
-        .select();
-
-      if (error) throw error;
-
-      setMenuItems((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id ? { ...item, ...data[0] } : item
-        )
-      );
-      setEditingItem(null);
-      setIsDialogOpen(false);
-      setFetchError(null);
-    } catch (error: any) {
-      console.error("Error updating menu item:", error);
-      setFetchError(error.message);
-    }
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    if (editingItem) {
-      setEditingItem({ ...editingItem, [name]: value });
-    } else {
-      setNewItem((prev) => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleDeleteMenuItem = async (id: number) => {
-    const { error } = await supabase.from(activeTable).delete().eq("id", id);
-
-    if (error) {
-      console.log("Error deleting item:", error);
-      setFetchError(error.message);
-    } else {
-      setMenuItems((prev) => prev.filter((item) => item.id !== id));
-    }
-  };
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8 bg-white rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-600">{error}</p>
+          <Button onClick={() => fetchData()} className="mt-4">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8">
-      <Header title="Menu" />
-      <div className="flex items-center justify-between">
-        <div className="flex justify-between">
-          <div className="flex space-x-4">
-            {[
-              "clasica_menu",
-              "clasica_combo_menu",
-              "suprema_menu",
-              "suprema_combo_menu",
-            ].map((table) => (
-              <Button
-                key={table}
-                onClick={() => {
-                  setActiveTable(table);
-                  setIsLoading(true); // Trigger loading state
-                  fetchMenuItems(); // Fetch new items
-                }}
-                className={`${
-                  activeTable === table ? "bg-black-300" : "bg-gray-200"
-                }`}
-              >
-                {table
-                  .replace(/_/g, " ")
-                  .replace(/^\w/, (c) => c.toUpperCase())}
-              </Button>
-            ))}
+    <div className="min-h-screen bg-gray-50 pb-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="py-8">
+          <Header title="Menu Management" />
+          <p className="mt-2 text-gray-600">
+            Manage your restaurant's menu items and packages
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="w-full sm:w-auto">
+            <Select
+              value={selectedCategory}
+              onValueChange={(value: Category) => setSelectedCategory(value)}
+            >
+              <SelectTrigger className="w-full sm:w-[200px] bg-white">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="main">Main Dishes</SelectItem>
+                <SelectItem value="side">Side Dishes</SelectItem>
+                <SelectItem value="drink">Drinks</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <AddMenuItemForm packages={packages} onSubmit={fetchData} />
+            <AddPackageForm menuItems={menuItems} onSubmit={fetchData} />
           </div>
         </div>
-        <div className="choose-package"></div>
-        <div className="trigger-section">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={() => {
-                  setEditingItem(null);
-                  setNewItem({
-                    name: "",
-                    description: "",
-                    imageSrc: "https://placehold.co/600x400",
-                  });
-                }}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Menu
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-white">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingItem ? "Edit Menu Item" : "Add New Menu Item"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div>
-                  <Label
-                    htmlFor="picture"
-                    className="flex flex-col justify-center items-center cursor-pointer h-auto border-2 border-dashed border-black rounded-lg p-4"
-                  >
-                    <img
-                      src={
-                        editingItem ? editingItem.imageSrc : newItem.imageSrc
-                      }
-                      alt={editingItem ? editingItem.name : newItem.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </Label>
-                  <Input id="picture" type="file" className="hidden" />
-                </div>
-                <InputForm
-                  label="Name"
-                  id="name"
-                  name="name"
-                  value={editingItem ? editingItem.name : newItem.name}
-                  onChange={handleInputChange}
-                />
-                {fetchError && (
-                  <p className="text-red-500">Error: {fetchError}</p>
-                )}
-                <InputForm
-                  id="description"
-                  label="Description"
-                  name="description"
-                  value={
-                    editingItem ? editingItem.description : newItem.description
-                  }
-                  onChange={handleInputChange}
-                />
-                <Button
-                  onClick={
-                    editingItem ? handleUpdateMenuItem : handleAddMenuItem
-                  }
+
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Menu Items</h2>
+            <span className="text-sm text-gray-500">
+              {filteredMenuItems.length} items
+            </span>
+          </div>
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, index) => (
+                <Card key={index} className="animate-pulse">
+                  <CardHeader className="h-20 bg-gray-200" />
+                  <CardContent className="space-y-3">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-4 bg-gray-200 rounded w-1/2" />
+                    <div className="h-40 bg-gray-200 rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredMenuItems.map((item) => (
+                <Card
+                  key={item.id}
+                  className="overflow-hidden bg-white hover:shadow-lg transition-shadow duration-200"
                 >
-                  {editingItem ? "Update Item" : "Add Item"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg font-semibold line-clamp-2">
+                        {item.name}
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-gray-600 line-clamp-2">
+                      {item.description}
+                    </p>
+
+                    {item.image_url && (
+                      <div className="relative aspect-video w-full overflow-hidden rounded-md">
+                        <Image
+                          src={item.image_url}
+                          alt={item.name}
+                          layout="fill"
+                          objectFit="cover"
+                          className="transition-transform duration-200 hover:scale-105"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs px-2.5 py-1 bg-gray-100 rounded-full text-gray-700">
+                          {item.category}
+                        </span>
+                        <span
+                          className={`text-xs px-2.5 py-1 rounded-full ${
+                            item.is_available
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {item.is_available ? "Available" : "Unavailable"}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditMenuItem(item)}
+                          className="flex-1 bg-gray-800 hover:bg-gray-700 text-white px-5 py-5 hover:text-white"
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteMenuItem(item.id)}
+                          className="flex-1 bg-red-600 hover:bg-red-500 text-white py-5 px-5"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {!isLoading && filteredMenuItems.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No menu items found.</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {isLoading ? (
-        <p>Loading menu...</p>
-      ) : (
-        <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8 mt-6">
-          {menuItems.map((item) => (
-            <div
-              key={item.id}
-              className="border rounded-lg p-4 bg-white shadow"
-            >
-              <img
-                src={item.imageSrc}
-                alt={item.name}
-                className="w-full h-48 object-cover mb-4 rounded"
-              />
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold mb-2">{item.name}</h2>
-                  <p className="text-gray-600">{item.description}</p>
-                </div>
-                <div className="flex gap-4">
-                  <Button
-                    onClick={() => {
-                      setEditingItem(item);
-                      setIsDialogOpen(true);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button onClick={() => handleDeleteMenuItem(item.id)}>
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      {editingItem && (
+        <EditMenuItemForm
+          item={editingItem}
+          isOpen={!!editingItem}
+          onClose={() => setEditingItem(null)}
+          onSubmit={handleUpdateMenuItem}
+        />
       )}
     </div>
   );
-};
-
-export default MenuPage;
+}
