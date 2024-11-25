@@ -1,254 +1,321 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Gallery from "@/components/admin/order/Gallery";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Minus, Plus } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, X } from "lucide-react";
 import supabase from "@/lib/supabaseClient";
-import Header from "@/components/HeaderBox";
-import { getCookie } from "cookies-next";
-import Swal from "sweetalert2";
-
-interface DeviceStatus {
-  device_id: string;
-  quantity: number;
-  package_order: string;
-  device_name: string;
-  is_active: boolean;
-}
+import { toast } from "@/components/ui/use-toast";
+import Image from "next/image";
 
 interface MenuItem {
-  id: number;
+  id: string;
   name: string;
   description: string;
-  imageSrc: string;
-  quantity: number;
+  category: string;
+  image_url: string;
 }
 
-function Page() {
-  const [orderItems, setOrderItems] = useState<MenuItem[]>([]);
-  const [device, setDevice] = useState<DeviceStatus | null>(null);
+interface OrderItem {
+  menu_item_id: string;
+  quantity: number;
+  name: string;
+  category: string;
+}
+
+export default function CustomerOrder() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("order");
+
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [quantity, setQuantity] = useState(50);
-  const [packageOrder, setPackageOrder] = useState<string>("");
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [categories, setCategories] = useState<string[]>([
+    "main",
+    "side",
+    "drink",
+  ]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isOrderPanelOpen, setIsOrderPanelOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const deviceId = getCookie("device_id");
-    if (deviceId) {
-      fetchDeviceInfo(deviceId);
-
-      const deviceChannel = supabase
-        .channel("device_changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "device_table",
-            filter: `device_id=eq.${deviceId}`,
-          },
-          (payload) => {
-            console.log("Device change received!", payload);
-            if (
-              payload.eventType === "UPDATE" ||
-              payload.eventType === "INSERT"
-            ) {
-              setDevice(payload.new as DeviceStatus);
-              setPackageOrder(payload.new.package_order);
-            } else if (payload.eventType === "DELETE") {
-              setDevice(null);
-              setPackageOrder("");
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(deviceChannel);
-      };
-    }
-  }, []);
-
-  useEffect(() => {
-    if (packageOrder) {
-      fetchMenuItems();
-
-      const menuChannel = supabase
-        .channel("menu_changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: packageOrder,
-          },
-          (payload) => {
-            console.log("Menu change received!", payload);
-            fetchMenuItems();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(menuChannel);
-      };
-    }
-  }, [packageOrder]);
-
-  const fetchDeviceInfo = async (deviceId: string) => {
-    const { data, error } = await supabase
-      .from("device_table")
-      .select()
-      .eq("device_id", deviceId)
-      .single();
-    if (error) {
-      console.error("Error fetching device:", error);
+    if (orderId) {
+      fetchOrderDetails();
     } else {
-      setDevice(data);
-      setPackageOrder(data.package_order);
+      toast({
+        title: "Error",
+        description: "Invalid order ID. Please scan the QR code again.",
+        variant: "destructive",
+      });
+    }
+  }, [orderId]);
+
+  const fetchOrderDetails = async () => {
+    setIsLoading(true);
+    try {
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .select(
+          `
+          package_id,
+          table:tables (table_number)
+        `
+        )
+        .eq("id", orderId)
+        .single();
+
+      if (orderError) throw orderError;
+
+      setTableNumber(orderData.table.table_number);
+
+      const { data: packageItems, error: packageError } = await supabase
+        .from("package_items")
+        .select("menu_item_id")
+        .eq("package_id", orderData.package_id);
+
+      if (packageError) throw packageError;
+
+      const menuItemIds = packageItems.map((item) => item.menu_item_id);
+
+      const { data: items, error: menuError } = await supabase
+        .from("menu_items")
+        .select("*")
+        .in("id", menuItemIds);
+
+      if (menuError) throw menuError;
+
+      setMenuItems(items);
+    } catch (error) {
+      console.error("Error fetching order details:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch order details. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const fetchMenuItems = async () => {
-    if (packageOrder) {
-      const { data, error } = await supabase.from(packageOrder).select();
-      if (error) {
-        console.error("Error fetching menu items:", error);
-      } else {
-        setMenuItems(data);
-      }
-    }
-  };
-
-  const addToOrder = (item: MenuItem) => {
-    setOrderItems((prevOrderItems) => {
-      const itemExists = prevOrderItems.find(
-        (orderItem) => orderItem.name === item.name
+  const handleAddToOrder = (item: MenuItem) => {
+    setOrderItems((prevItems) => {
+      const existingItem = prevItems.find(
+        (orderItem) => orderItem.menu_item_id === item.id
       );
 
-      if (itemExists) {
-        return prevOrderItems.map((orderItem) =>
-          orderItem.name === item.name
-            ? { ...orderItem, quantity: orderItem.quantity + 50 }
+      if (existingItem) {
+        // If item already exists in the order, just increase quantity
+        return prevItems.map((orderItem) =>
+          orderItem.menu_item_id === item.id
+            ? { ...orderItem, quantity: orderItem.quantity + 1 }
             : orderItem
         );
       } else {
-        return [...prevOrderItems, { ...item, quantity }];
+        // If item is not in the order, add it with quantity 1
+        return [
+          ...prevItems,
+          {
+            menu_item_id: item.id,
+            quantity: 1,
+            name: item.name,
+            category: item.category,
+          },
+        ];
       }
+    });
+
+    if (!isOrderPanelOpen) {
+      setIsOrderPanelOpen(true);
+    }
+  };
+
+  const handleQuantityChange = (item: OrderItem, quantity: number) => {
+    setOrderItems((prevItems) => {
+      const updatedItems = prevItems.map((orderItem) =>
+        orderItem.menu_item_id === item.menu_item_id
+          ? { ...orderItem, quantity }
+          : orderItem
+      );
+      return updatedItems;
     });
   };
 
-  const submitOrder = async () => {
-    if (!device) {
-      console.error("Device information not available");
+  const handlePlaceOrder = async () => {
+    if (orderItems.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add items to your order before placing it.",
+        variant: "destructive",
+      });
       return;
     }
 
-    const orderData = {
-      device_id: device.device_id,
-      order_items: orderItems.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-      })),
-      order_date: new Date().toISOString(),
-      status: "pending",
-    };
+    try {
+      const { error } = await supabase.from("order_items").insert(
+        orderItems.map((item) => ({
+          order_id: orderId,
+          menu_item_id: item.menu_item_id,
+          quantity: item.quantity,
+          status: "pending",
+        }))
+      );
 
-    const { data, error } = await supabase.from("orders").insert(orderData);
+      if (error) throw error;
 
-    if (error) {
-      console.error("Error submitting order:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Oops...",
-        text: "Something went wrong! Please try again.",
-      });
-    } else {
-      console.log("Order submitted successfully:", data);
-      Swal.fire({
-        icon: "success",
-        title: "Order Submitted!",
-        text: "Your order has been successfully placed.",
-      });
-      // Clear the order items after successful submission
       setOrderItems([]);
+      toast({
+        title: "Order Placed",
+        description: "Your order has been placed successfully.",
+      });
+      setIsOrderPanelOpen(false);
+    } catch (error) {
+      console.error("Error placing order:", error);
+      toast({
+        title: "Error",
+        description: "Failed to place order. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  const incrementQuantity = (itemName: string) => {
-    setOrderItems((prevItems) =>
-      prevItems.map((item) =>
-        item.name === itemName
-          ? { ...item, quantity: item.quantity + 50 }
-          : item
-      )
-    );
-  };
+  const filteredMenuItems =
+    selectedCategory === "all"
+      ? menuItems
+      : menuItems.filter((item) => item.category === selectedCategory);
 
-  const decrementQuantity = (itemName: string) => {
-    setOrderItems((prevItems) =>
-      prevItems
-        .map((item) =>
-          item.name === itemName && item.quantity > 50
-            ? { ...item, quantity: item.quantity - 50 }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
     );
-  };
+  }
 
   return (
-    <div className="min-h-[100%] w-full flex">
-      <div className="flex flex-col gap-5 w-full mr-5">
-        <Header title={device ? device.device_name : "Loading..."} />
-        <div className="flex gap-5">
-          <Button>Main</Button>
-          <Button>Sides</Button>
-          <Button>Drinks</Button>
-          <Button>Utilities</Button>
-        </div>
-        <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8 mt-6">
-          {menuItems.map((item, index) => (
-            <Gallery
-              key={index}
-              name={item.name}
-              description={item.description}
-              quantity={item.quantity}
-              onAddToOrder={() => addToOrder(item)}
-            />
-          ))}
-        </div>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-2">Place Your Order</h1>
+      {tableNumber && (
+        <h2 className="text-xl mb-6">Table Number: {tableNumber}</h2>
+      )}
+
+      <div className="mb-4 flex gap-4">
+        {categories.map((category) => (
+          <Button
+            key={category}
+            onClick={() => setSelectedCategory(category)}
+            variant={selectedCategory === category ? "default" : "outline"}
+            className="w-full"
+          >
+            {category.charAt(0).toUpperCase() + category.slice(1)}
+          </Button>
+        ))}
+        <Button
+          onClick={() => setSelectedCategory("all")}
+          variant={selectedCategory === "all" ? "default" : "outline"}
+          className="w-full"
+        >
+          All
+        </Button>
       </div>
 
-      {/* Sidebar */}
-      <div className="w-96 bg-gray-200 p-5 border-1 border-gray-300 relative ">
-        <h1>Order List</h1>
-        <div className="grid border mt-5 gap-2 overflow-y-auto max-h-[46rem]">
-          {orderItems.map((item, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between border bg-white p-2 w-[rem]"
-            >
-              <p>{item.name}</p>
-              <div className="flex justify-center items-center gap-4">
-                <Minus onClick={() => decrementQuantity(item.name)} />
-                <p>{item.quantity}g</p>
-                <Plus onClick={() => incrementQuantity(item.name)} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="absolute bottom-0 left-0 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredMenuItems.map((item) => (
+          <Card key={item.id} className="overflow-hidden">
+            <CardHeader className="p-0">
+              {item.image_url && (
+                <div className="relative w-full h-48">
+                  <Image
+                    src={item.image_url}
+                    alt={item.name}
+                    layout="fill"
+                    objectFit="cover"
+                  />
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="p-4">
+              <CardTitle className="mb-2">{item.name}</CardTitle>
+              <p className="text-sm text-gray-600 mb-4">{item.description}</p>
+              <Button
+                onClick={() => handleAddToOrder(item)}
+                className="w-full bg-blue-500 text-white"
+              >
+                Add to Order
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div
+        className={`fixed inset-y-0 right-0 w-80 bg-white shadow-lg p-6 transform transition-transform duration-300 ease-in-out ${
+          isOrderPanelOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">Your Order</h2>
           <Button
-            className="bg-green-400 w-full hover:bg-green-400"
-            onClick={submitOrder}
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsOrderPanelOpen(false)}
           >
-            Order
+            <X className="h-6 w-6" />
           </Button>
         </div>
+        {orderItems.length === 0 ? (
+          <p className="text-gray-500">No items in your order yet.</p>
+        ) : (
+          <>
+            {orderItems.map((item) => (
+              <div
+                key={item.menu_item_id}
+                className="flex justify-between items-center mb-4"
+              >
+                <div>
+                  <p className="font-semibold">{item.name}</p>
+                  <p className="text-sm text-gray-500">{item.category}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() =>
+                      handleQuantityChange(item, item.quantity - 1)
+                    }
+                    disabled={item.quantity <= 1}
+                  >
+                    -
+                  </Button>
+                  <Input
+                    value={item.quantity}
+                    onChange={(e) =>
+                      handleQuantityChange(item, parseInt(e.target.value))
+                    }
+                    type="number"
+                    min="1"
+                    className="w-12 text-center"
+                  />
+                  <Button
+                    onClick={() =>
+                      handleQuantityChange(item, item.quantity + 1)
+                    }
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button
+              onClick={handlePlaceOrder}
+              className="w-full bg-green-500 text-white"
+            >
+              Place Order
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
 }
-
-export default Page;
