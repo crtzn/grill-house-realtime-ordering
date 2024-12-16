@@ -41,7 +41,7 @@ export default function NewOrderDialog() {
         <AlertDialogHeader>
           <div className="flex w-full justify-between items-center">
             <AlertDialogTitle>New Order</AlertDialogTitle>
-            <AlertDialogCancel className="h-10 w-10 p-0 border-none bg-red-500">
+            <AlertDialogCancel className="h-10 w-10 p-0 border-none bg-red-500 hover:bg-red-400">
               <X className="h-4 w-4" />
             </AlertDialogCancel>
           </div>
