@@ -93,25 +93,7 @@ export default function EditMenuItemForm({
   };
 
   const handleFormClose = () => {
-    Swal.fire({
-      title: "Are you sure?",
-      text: "Any unsaved changes will be lost!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Yes, close it!",
-      customClass: {
-        confirmButton:
-          "bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded mr-2",
-        cancelButton:
-          "bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded",
-      },
-    }).then((result) => {
-      if (result.isConfirmed) {
-        onClose(); // Properly close the dialog
-      }
-    });
+    onClose();
   };
 
   return (
