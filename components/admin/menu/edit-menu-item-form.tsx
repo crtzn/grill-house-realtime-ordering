@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MenuItemType } from "@/app/types";
 import Swal from "sweetalert2";
 import supabase from "@/lib/supabaseClient";
+import Image from "next/image";
 
 interface EditMenuItemFormProps {
   item: MenuItemType;
@@ -37,11 +38,48 @@ export default function EditMenuItemForm({
   onSubmit,
 }: EditMenuItemFormProps) {
   const [editedItem, setEditedItem] = useState<MenuItemType>(item);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(
+    item.image_url || null
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string> => {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Math.random()
+      .toString(36)
+      .substring(2, 15)}.${fileExt}`;
+    const filePath = `menu-items/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("menu-images")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from("menu-images")
+      .getPublicUrl(filePath);
+    return data.publicUrl;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Show loading alert
     Swal.fire({
       title: "Updating...",
       text: "Please wait while we update the menu item",
@@ -52,10 +90,18 @@ export default function EditMenuItemForm({
     });
 
     try {
+      let updatedImageUrl = editedItem.image_url;
+
+      if (imageFile) {
+        updatedImageUrl = await uploadImage(imageFile);
+      }
+
+      const updatedItem = { ...editedItem, image_url: updatedImageUrl };
+
       const { data, error } = await supabase
         .from("menu_items")
-        .update(editedItem)
-        .eq("id", editedItem.id)
+        .update(updatedItem)
+        .eq("id", updatedItem.id)
         .select()
         .single();
 
@@ -64,7 +110,6 @@ export default function EditMenuItemForm({
       onSubmit(data as MenuItemType);
       onClose();
 
-      // Show success alert
       await Swal.fire({
         icon: "success",
         title: "Success!",
@@ -78,7 +123,6 @@ export default function EditMenuItemForm({
     } catch (error) {
       console.error("Error updating menu item:", error);
 
-      // Show error alert
       await Swal.fire({
         icon: "error",
         title: "Oops...",
@@ -157,6 +201,35 @@ export default function EditMenuItemForm({
               }
             />
             <Label htmlFor="is_available">Available</Label>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="image">Image</Label>
+            <div className="flex items-center space-x-4">
+              {imagePreview && (
+                <Image
+                  src={imagePreview}
+                  alt="Menu item preview"
+                  width={100}
+                  height={100}
+                  className="object-cover rounded"
+                />
+              )}
+              <Input
+                id="image"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+                ref={fileInputRef}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {imagePreview ? "Change Image" : "Upload Image"}
+              </Button>
+            </div>
           </div>
           <Button type="submit">Update Menu Item</Button>
         </form>
