@@ -6,7 +6,7 @@ import Card from "@/components/TotalCustomerBox";
 import CustomerChart from "@/components/CustomerChart";
 import AddNewOrder from "@/components/admin/order/NewOrderBtn";
 import { Button } from "@/components/ui/button";
-import { Bell } from "lucide-react";
+import { Bell, Bolt } from "lucide-react";
 import TotalSales from "@/components/TotalSale";
 import AddingNewCustomer from "@/components/admin/order/NewOrderBtn";
 
@@ -22,9 +22,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex w-full justify-end gap-5 items-center align-middle">
           <Bell width={35} height={50} />
-          <div className="flex justify-center items-center h-14 w-36 bg-[#111111] text-white rounded-xl hover:bg-[#2b2929] hover:drop-shadow-lg">
-            <AddingNewCustomer />
-          </div>
+          <Bolt width={35} height={50} />
         </div>
       </div>
 
