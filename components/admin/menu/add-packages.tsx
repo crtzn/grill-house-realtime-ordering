@@ -18,13 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MenuItem } from "@/app/types";
+import { MenuItemType } from "@/app/types";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import supabase from "@/lib/supabaseClient";
 
 interface AddPackageFormProps {
-  menuItems: MenuItem[];
+  menuItems: MenuItemType[];
   onSubmit: () => void;
 }
 
