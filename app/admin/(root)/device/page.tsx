@@ -102,6 +102,10 @@ export default function TableManagement() {
     }
   };
 
+  const handleDeleteTable = async (table: Table) => {
+    return;
+  };
+
   const handleTableClick = async (table: Table) => {
     setSelectedTable(table);
     if (table.status === "occupied") {
@@ -109,11 +113,11 @@ export default function TableManagement() {
         .from("orders")
         .select(
           `
-          id,
-          package:packages (name),
-          customer_count,
-          status
-        `
+            id,
+            package:packages (name),
+            customer_count,
+            status
+          `
         )
         .eq("table_id", table.id)
         .eq("status", "active")
@@ -127,7 +131,10 @@ export default function TableManagement() {
           variant: "destructive",
         });
       } else if (data) {
-        setCurrentOrder(data);
+        setCurrentOrder({
+          ...data,
+          package: data.package[0],
+        });
       }
     } else {
       setCurrentOrder(null);
