@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import Image from "next/image";
 import { toast } from "@/components/ui/use-toast";
+import Swal from "sweetalert2";
+import { set } from "react-hook-form";
 
 type Category = "main" | "side" | "drink" | "all";
 
@@ -27,35 +29,16 @@ export default function MenuPage() {
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category>("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItemType | null>(null);
+  const [newItem, setNewItem] = useState<MenuItemType>();
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchMenuitems = async () => {
     try {
-      const { data: menuData, error: menuError } = await supabase
-        .from("menu_items")
-        .select("*");
-
-      const { data: packageData, error: packageError } = await supabase
-        .from("packages")
-        .select("*");
-
-      if (menuError) throw menuError;
-      if (packageError) throw packageError;
-
-      const validMenuItems =
-        menuData?.map((item) => ({
-          ...item,
-          category: item.category as MenuItemType["category"],
-          is_available: Boolean(item.is_available),
-        })) || [];
-
-      setMenuItems(validMenuItems);
-      setPackages(packageData || []);
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const { data, error } = await supabase.from("menu_items").select("*");
+      if (error) throw error;
+      setMenuItems(data || []);
+    } catch (error) {
+      console.log("Error fetching data:", error);
       toast({
         title: "Error",
         description: "Failed to fetch menu data. Please try again.",
@@ -67,119 +50,105 @@ export default function MenuPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchMenuitems();
+  });
 
-  const handleEditMenuItem = (item: MenuItemType) => {
+  async function handleDeleteMenuItem(id: string) {
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it!",
+      confirmButtonColor: "#3085d6",
+      cancelButtonText: "Cancel",
+      cancelButtonColor: "#d33",
+    });
+
+    if (result.isConfirmed) {
+      const { error } = await supabase.from("menu_items").delete().eq("id", id);
+      if (error) {
+        Swal.fire(
+          "Error",
+          "Failed to delete menu item. Please try again.",
+          "error"
+        );
+      } else {
+        Swal.fire("Deleted!", "Menu item has been deleted.", "success");
+      }
+    }
+  }
+
+  async function handleEditMenuItem(item: MenuItemType) {
     setEditingItem(item);
-  };
+  }
 
-  const handleUpdateMenuItem = async (updatedItem: MenuItemType) => {
+  async function handleUpdateMenuitem(updatedMenuItem: MenuItemType | null) {
+    if (!updatedMenuItem) {
+      setEditingItem(null);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("menu_items")
         .update({
-          name: updatedItem.name,
-          description: updatedItem.description,
-          category: updatedItem.category,
-          image_url: updatedItem.image_url,
-          is_available: updatedItem.is_available,
+          name: updatedMenuItem.name,
+          description: updatedMenuItem.description,
+          category: updatedMenuItem.category,
+          image_url: updatedMenuItem.image_url,
+          is_available: updatedMenuItem.is_available,
         })
-        .eq("id", updatedItem.id)
+        .eq("id", updatedMenuItem.id)
         .select();
 
       if (error) throw error;
+
       if (data?.[0]) {
         setMenuItems(
           menuItems.map((item) =>
-            item.id === updatedItem.id ? (data[0] as MenuItemType) : item
+            item.id === updatedMenuItem.id ? (data[0] as MenuItemType) : item
           )
         );
         setEditingItem(null);
         toast({
           title: "Success",
-          description: "Menu item updated successfully.",
+          description: "Menu item updated successfully",
+          variant: "default",
         });
       }
-    } catch (err) {
-      console.error("Error updating menu item:", err);
+    } catch (error) {
+      console.error("Error updating menu item:", error);
       toast({
         title: "Error",
         description: "Failed to update menu item. Please try again.",
         variant: "destructive",
       });
     }
-  };
-
-  const handleDeleteMenuItem = async (id: string) => {
-    try {
-      const { data: packageContents, error: checkError } = await supabase
-        .from("package_items")
-        .select("id")
-        .eq("menu_item_id", id);
-
-      if (checkError) throw checkError;
-
-      if (packageContents && packageContents.length > 0) {
-        toast({
-          title: "Warning",
-          description: "Cannot delete item as it's used in packages.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from("menu_items")
-        .delete()
-        .eq("id", id);
-
-      if (deleteError) throw deleteError;
-      setMenuItems(menuItems.filter((item) => item.id !== id));
-      toast({
-        title: "Success",
-        description: "Menu item deleted successfully.",
-      });
-    } catch (err) {
-      console.error("Error deleting menu item:", err);
-      toast({
-        title: "Error",
-        description: "Failed to delete menu item. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  }
 
   const filteredMenuItems =
     selectedCategory === "all"
       ? menuItems
       : menuItems.filter((item) => item.category === selectedCategory);
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8 bg-white rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-gray-600">{error}</p>
-          <Button onClick={() => fetchData()} className="mt-4">
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="py-8">
-          <Header title="Menu Management" />
-          <p className="mt-2 text-gray-600">
-            Manage your restaurant's menu items and packages
-          </p>
+        <div className="flex justify-between items-center py-8">
+          <div>
+            <Header title="Menu Management" />
+            <p className="mt-2 text-gray-600">
+              Manage your restaurant's menu items and packages
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <AddMenuItemForm packages={packages} onSubmit={fetchMenuitems} />
+            <AddPackageForm menuItems={menuItems} onSubmit={fetchMenuitems} />
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:it ems-center gap-4 mb-8">
           <div className="w-full sm:w-auto">
             <Select
               value={selectedCategory}
@@ -195,11 +164,6 @@ export default function MenuPage() {
                 <SelectItem value="drink">Drinks</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <AddMenuItemForm packages={packages} onSubmit={fetchData} />
-            <AddPackageForm menuItems={menuItems} onSubmit={fetchData} />
           </div>
         </div>
 
@@ -249,6 +213,7 @@ export default function MenuPage() {
                           src={item.image_url}
                           alt={item.name}
                           layout="fill"
+                          sizes=""
                           objectFit="cover"
                           className="transition-transform duration-200 hover:scale-105"
                         />
@@ -311,7 +276,7 @@ export default function MenuPage() {
           item={editingItem}
           isOpen={!!editingItem}
           onClose={() => setEditingItem(null)}
-          onSubmit={handleUpdateMenuItem}
+          onSubmit={handleUpdateMenuitem}
         />
       )}
     </div>
