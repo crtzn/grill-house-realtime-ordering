@@ -8,13 +8,31 @@ export interface MenuItemType {
   is_available: boolean;
 }
 
-export interface OrderItemType {
+export interface PackageItem {
   id: string;
-  menu_item: {
-    name: string;
-  };
+  package_id: string;
+  menu_item_id: string;
+  quantity: number | null;
+  is_unlimited: boolean;
+}
+
+export interface OrderItem {
+  id: string;
+  menu_item_id: string;
   quantity: number;
   status: "pending" | "preparing" | "served" | "cancelled";
+  menuItem: MenuItemType;
+}
+
+export interface Order {
+  id: string;
+  table_id: string;
+  package_id: string;
+  customer_count: number;
+  status: "pending" | "active" | "completed" | "cancelled";
+  created_at: string;
+  terminated_at: string | null;
+  orderItems: OrderItem[];
 }
 
 export interface OrderType {
@@ -29,7 +47,7 @@ export interface OrderType {
   customer_count: number;
   status: "pending" | "active" | "completed" | "cancelled";
   created_at: string;
-  order_items: OrderItemType[];
+  order_items: OrderItem[];
 }
 
 export interface TableType {
