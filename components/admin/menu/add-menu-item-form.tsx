@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import Swal from "sweetalert2";
 import {
   Dialog,
   DialogContent,
@@ -20,35 +21,98 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MenuItemType, PackageType } from "@/app/types";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import supabase from "@/lib/supabaseClient";
 
-interface AddMenuItemFormProps {
-  packages: PackageType[];
-  onSubmit: () => void;
+// Updated types to match database schema
+interface PackageType {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  is_available: boolean;
+}
+
+interface MenuItemType {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  image_url: string | null;
+  is_available: boolean;
+}
+
+// Updated to match package_items table structure
+interface SelectedPackageState {
+  selected: boolean;
+  quantity: number | null;
+  isUnlimited: boolean;
 }
 
 export default function AddMenuItemForm({
-  packages,
   onSubmit,
-}: AddMenuItemFormProps) {
+}: {
+  onSubmit: () => void;
+}) {
   const [open, setOpen] = useState(false);
+  const [packages, setPackages] = useState<PackageType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [newItem, setNewItem] = useState<Omit<MenuItemType, "id">>({
     name: "",
     description: "",
     category: "main",
-    image_url: "",
+    image_url: null,
     is_available: true,
   });
-  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
-  const [quantity, setQuantity] = useState(1); // Quantity state
-  const [isUnlimited, setIsUnlimited] = useState(false); // Unlimited state
+
+  const [selectedPackages, setSelectedPackages] = useState<{
+    [key: string]: SelectedPackageState;
+  }>({});
+
   const [image, setImage] = useState<File | null>(null);
   const router = useRouter();
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("packages")
+          .select("*")
+          .eq("is_available", true)
+          .order("name");
+
+        if (error) throw error;
+
+        if (data) {
+          setPackages(data);
+          // Initialize with proper typing
+          const packagesState: { [key: string]: SelectedPackageState } = {};
+          data.forEach((pkg) => {
+            packagesState[pkg.id] = {
+              selected: false,
+              quantity: 1,
+              isUnlimited: false,
+            };
+          });
+          setSelectedPackages(packagesState);
+        }
+      } catch (error) {
+        console.error("Error fetching packages:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load packages. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPackages();
+  }, []);
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setImage(e.target.files[0]);
     }
@@ -57,7 +121,7 @@ export default function AddMenuItemForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let imageUrl = "";
+      let imageUrl = null;
       if (image) {
         const fileExt = image.name.split(".").pop();
         const fileName = `${Math.random()}.${fileExt}`;
@@ -78,60 +142,84 @@ export default function AddMenuItemForm({
       const { data: menuItem, error: menuError } = await supabase
         .from("menu_items")
         .insert({
-          name: newItem.name,
-          description: newItem.description,
-          category: newItem.category,
+          ...newItem,
           image_url: imageUrl,
-          is_available: newItem.is_available,
         })
         .select()
         .single();
 
       if (menuError) throw menuError;
 
-      // Check if menu item was created successfully
-      if (menuItem && selectedPackages.length > 0) {
-        // Insert into package_items instead of package_contents
-        const packageItems = selectedPackages.map((packageId) => ({
-          menu_item_id: menuItem.id, // New menu item ID
-          package_id: packageId,
-          quantity: isUnlimited ? null : quantity, // If unlimited, no quantity
-          is_unlimited: isUnlimited,
-        }));
+      // Insert package items for selected packages
+      if (menuItem) {
+        const packageItemsToInsert = Object.entries(selectedPackages)
+          .filter(([_, value]) => value.selected)
+          .map(([packageId, value]) => ({
+            package_id: packageId,
+            menu_item_id: menuItem.id,
+            quantity: value.isUnlimited ? null : value.quantity,
+            is_unlimited: value.isUnlimited,
+          }));
 
-        const { error: packageError } = await supabase
-          .from("package_items") // Change to package_items table
-          .insert(packageItems);
+        if (packageItemsToInsert.length > 0) {
+          const { error: packageItemsError } = await supabase
+            .from("package_items")
+            .insert(packageItemsToInsert);
 
-        if (packageError) throw packageError;
+          if (packageItemsError) throw packageItemsError;
+        }
       }
 
+      // Reset form after successful submission
       setOpen(false);
       setNewItem({
         name: "",
         description: "",
         category: "main",
-        image_url: "",
+        image_url: null,
         is_available: true,
       });
-      setSelectedPackages([]);
       setImage(null);
-      setQuantity(1);
-      setIsUnlimited(false);
+
+      // Reset packages state with proper typing
+      const resetPackagesState: { [key: string]: SelectedPackageState } = {};
+      packages.forEach((pkg) => {
+        resetPackagesState[pkg.id] = {
+          selected: false,
+          quantity: 1,
+          isUnlimited: false,
+        };
+      });
+      setSelectedPackages(resetPackagesState);
+
       onSubmit();
       router.refresh();
-      toast({
+      Swal.fire({
+        icon: "success",
         title: "Success",
-        description: "Menu item added successfully",
+        text: "Menu item added successfully",
       });
     } catch (error) {
       console.error("Error adding menu item:", error);
-      toast({
+      Swal.fire({
+        icon: "error",
         title: "Error",
-        description: "Failed to add menu item. Please try again.",
-        variant: "destructive",
+        text: "Failed to add menu item. Please try again.",
       });
     }
+  };
+
+  const updatePackageSelection = (
+    packageId: string,
+    updates: Partial<SelectedPackageState>
+  ) => {
+    setSelectedPackages((prev) => ({
+      ...prev,
+      [packageId]: {
+        ...prev[packageId],
+        ...updates,
+      },
+    }));
   };
 
   return (
@@ -159,7 +247,7 @@ export default function AddMenuItemForm({
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={newItem.description}
+              value={newItem.description || ""}
               onChange={(e) =>
                 setNewItem({ ...newItem, description: e.target.value })
               }
@@ -179,10 +267,7 @@ export default function AddMenuItemForm({
             <Select
               value={newItem.category}
               onValueChange={(value) =>
-                setNewItem({
-                  ...newItem,
-                  category: value as MenuItemType["category"],
-                })
+                setNewItem({ ...newItem, category: value })
               }
             >
               <SelectTrigger>
@@ -192,47 +277,65 @@ export default function AddMenuItemForm({
                 <SelectItem value="main">Main</SelectItem>
                 <SelectItem value="side">Side</SelectItem>
                 <SelectItem value="drink">Drink</SelectItem>
+                <SelectItem value="addsOn">Adds On</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label>Assign to Packages</Label>
-            {packages.map((pkg) => (
-              <div key={pkg.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`package-${pkg.id}`}
-                  checked={selectedPackages.includes(pkg.id)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedPackages([...selectedPackages, pkg.id]);
-                    } else {
-                      setSelectedPackages(
-                        selectedPackages.filter((id) => id !== pkg.id)
-                      );
-                    }
-                  }}
-                />
-                <Label htmlFor={`package-${pkg.id}`}>{pkg.name}</Label>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity</Label>
-            <Input
-              id="quantity"
-              type="number"
-              min="1"
-              value={quantity}
-              onChange={(e) => setQuantity(parseInt(e.target.value))}
-              disabled={isUnlimited}
-            />
-            <div className="flex items-center">
-              <Checkbox
-                checked={isUnlimited}
-                onCheckedChange={() => setIsUnlimited(!isUnlimited)}
-              />
-              <Label>Unlimited</Label>
-            </div>
+            {isLoading ? (
+              <div>Loading packages...</div>
+            ) : packages.length === 0 ? (
+              <div>No packages available</div>
+            ) : (
+              packages.map((pkg) => (
+                <div key={pkg.id} className="space-y-2 border p-3 rounded-md">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`package-${pkg.id}`}
+                      checked={selectedPackages[pkg.id]?.selected}
+                      onCheckedChange={(checked) => {
+                        updatePackageSelection(pkg.id, {
+                          selected: checked as boolean,
+                        });
+                      }}
+                    />
+                    <Label htmlFor={`package-${pkg.id}`}>{pkg.name}</Label>
+                  </div>
+                  {selectedPackages[pkg.id]?.selected && (
+                    <div className="ml-6 space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={selectedPackages[pkg.id]?.isUnlimited}
+                          onCheckedChange={(checked) => {
+                            updatePackageSelection(pkg.id, {
+                              isUnlimited: checked as boolean,
+                              quantity: checked ? null : 1,
+                            });
+                          }}
+                        />
+                        <Label>Unlimited</Label>
+                      </div>
+                      {!selectedPackages[pkg.id]?.isUnlimited && (
+                        <div>
+                          <Label>Quantity</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={selectedPackages[pkg.id]?.quantity ?? 1}
+                            onChange={(e) => {
+                              updatePackageSelection(pkg.id, {
+                                quantity: parseInt(e.target.value),
+                              });
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
           <Button type="submit" className="w-full">
             Add Item
