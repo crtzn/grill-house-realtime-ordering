@@ -4,7 +4,7 @@ export interface MenuItemType {
   name: string;
   description?: string;
   category: string;
-  image_url?: string;
+  image_url?: string | null;
   is_available: boolean;
 }
 
@@ -24,7 +24,7 @@ export interface OrderItem {
   menuItem: MenuItemType;
 }
 
-export interface Order {
+export interface Customer {
   id: string;
   table_id: string;
   package_id: string;
@@ -66,4 +66,8 @@ export interface NewCustomerType {
   table_id: string;
   package_id: string;
   customer_count: string;
+}
+
+export interface CategoryType {
+  name: string;
 }
