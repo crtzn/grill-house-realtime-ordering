@@ -9,7 +9,7 @@ import AddPackageForm from "@/components/admin/menu/add-packages";
 import EditMenuItemForm from "@/components/admin/menu/edit-menu-item-form";
 import { MenuItemType, PackageType } from "@/app/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Pencil, Trash2, Loader2 } from "lucide-react";
+import { FilePenLine, Pencil, Trash2, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -49,8 +49,24 @@ export default function MenuPage() {
     }
   };
 
+  const fetchPackages = async () => {
+    try {
+      const { data, error } = await supabase.from("packages").select("*");
+      if (error) throw error;
+      setPackages(data || []);
+    } catch (error) {
+      console.log("Error fetching packages:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch packages. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     fetchMenuitems();
+    fetchPackages();
   });
 
   async function handleDeleteMenuItem(id: string) {
@@ -127,6 +143,36 @@ export default function MenuPage() {
     }
   }
 
+  async function handleRemovePackage(id: string) {
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it!",
+      confirmButtonColor: "#3085d6",
+      cancelButtonText: "Cancel",
+      cancelButtonColor: "#d33",
+    });
+
+    if (result.isConfirmed) {
+      const { error } = await supabase.from("packages").delete().eq("id", id);
+      if (error) {
+        Swal.fire({
+          title: "Error",
+          text: "Failed to delete package. Please try again.",
+          icon: "error",
+        });
+      } else {
+        Swal.fire({
+          title: "Success",
+          text: "Package has been deleted.",
+          icon: "success",
+        });
+      }
+    }
+  }
+
   const filteredMenuItems =
     selectedCategory === "all"
       ? menuItems
@@ -143,18 +189,18 @@ export default function MenuPage() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <AddMenuItemForm packages={packages} onSubmit={fetchMenuitems} />
+            <AddMenuItemForm onSubmit={fetchMenuitems} />
             <AddPackageForm menuItems={menuItems} onSubmit={fetchMenuitems} />
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:it ems-center gap-4 mb-8">
-          <div className="w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="w-full flex gap-5 sm:w-auto">
             <Select
               value={selectedCategory}
               onValueChange={(value: Category) => setSelectedCategory(value)}
             >
-              <SelectTrigger className="w-full sm:w-[200px] bg-white">
+              <SelectTrigger className="w-full sm:w-[200px] bg-white drop-shadow-xl">
                 <SelectValue placeholder="Filter by category" />
               </SelectTrigger>
               <SelectContent className="bg-white">
@@ -162,6 +208,19 @@ export default function MenuPage() {
                 <SelectItem value="main">Main Dishes</SelectItem>
                 <SelectItem value="side">Side Dishes</SelectItem>
                 <SelectItem value="drink">Drinks</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select>
+              <SelectTrigger className="w-full sm:w-[200px] bg-white drop-shadow-xl">
+                <SelectValue placeholder="Filter by package" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All Packages</SelectItem>
+                {packages.map((pkg) => (
+                  <SelectItem key={pkg.id} value={pkg.id}>
+                    {pkg.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
