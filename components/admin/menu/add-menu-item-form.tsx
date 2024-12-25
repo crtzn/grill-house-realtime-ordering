@@ -24,30 +24,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import supabase from "@/lib/supabaseClient";
-
-// Updated types to match database schema
-interface PackageType {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  is_available: boolean;
-}
-
-interface MenuItemType {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string;
-  image_url: string | null;
-  is_available: boolean;
-}
+import { MenuItemType, PackageType } from "@/app/types/index";
 
 // Updated to match package_items table structure
 interface SelectedPackageState {
   selected: boolean;
   quantity: number | null;
   isUnlimited: boolean;
+}
+
+interface AddMenuItemFormProps {
+  packages: PackageType[];
+  onSubmit: () => void;
 }
 
 export default function AddMenuItemForm({
@@ -204,7 +192,7 @@ export default function AddMenuItemForm({
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: "Failed to add menu item. Please try again.",
+        text: "Failed to add menu item!",
       });
     }
   };

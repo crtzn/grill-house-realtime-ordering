@@ -22,6 +22,7 @@ import { MenuItemType } from "@/app/types";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import supabase from "@/lib/supabaseClient";
+import Swal from "sweetalert2";
 
 interface AddPackageFormProps {
   menuItems: MenuItemType[];
@@ -72,17 +73,18 @@ export default function AddPackageForm({
         setSelectedItems([]);
         onSubmit();
         router.refresh();
-        toast({
+        Swal.fire({
           title: "Success",
-          description: "Package added successfully",
+          text: "Package added successfully.",
+          icon: "success",
         });
       }
     } catch (error) {
       console.error("Error adding package:", error);
-      toast({
+      Swal.fire({
         title: "Error",
-        description: "Failed to add package. Please try again.",
-        variant: "destructive",
+        text: "An error occurred while adding the package.",
+        icon: "error",
       });
     }
   };
