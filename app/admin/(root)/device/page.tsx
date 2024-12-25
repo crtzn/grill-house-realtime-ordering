@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import supabase from "@/lib/supabaseClient";
 import { toast } from "@/components/ui/use-toast";
+import Swal from "sweetalert2";
+import { Trash } from "lucide-react";
 
 interface Table {
   id: string;
@@ -73,9 +75,35 @@ export default function TableManagement() {
     }
   };
 
+  const handleDeleteTable = async (tableId: string) => {
+    try {
+      const { error } = await supabase
+        .from("tables")
+        .delete()
+        .eq("id", tableId);
+
+      if (error) throw error;
+
+      Swal.fire({
+        title: "Success",
+        text: "Table has been deleted successfully.",
+        icon: "success",
+      });
+
+      fetchTables();
+    } catch (error) {
+      console.error("Error deleting table:", error);
+      Swal.fire({
+        title: "Error",
+        text: "Failed to delete table. Please try again.",
+        icon: "error",
+      });
+    }
+  };
+
   const handleAddTable = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("tables")
       .insert({
         table_number: parseInt(newTable.table_number),
@@ -86,24 +114,21 @@ export default function TableManagement() {
 
     if (error) {
       console.error("Error adding table:", error);
-      toast({
+      Swal.fire({
+        icon: "error",
         title: "Error",
-        description: "Failed to add table. Please try again.",
-        variant: "destructive",
+        text: "An error occurred while adding the table.",
       });
     } else {
       setNewTable({ table_number: "", capacity: "" });
       setIsAddingTable(false);
       fetchTables();
-      toast({
-        title: "Table Added",
-        description: "New table has been added successfully.",
+      Swal.fire({
+        title: "Success",
+        text: "Table added successfully.",
+        icon: "success",
       });
     }
-  };
-
-  const handleDeleteTable = async (table: Table) => {
-    return;
   };
 
   const handleTableClick = async (table: Table) => {
@@ -144,56 +169,57 @@ export default function TableManagement() {
   const handleTerminateTable = async () => {
     if (!selectedTable || !currentOrder) return;
 
-    const { error: orderError } = await supabase
-      .from("orders")
-      .update({ status: "completed", terminated_at: new Date().toISOString() })
-      .eq("id", currentOrder.id);
+    try {
+      // Complete the order
+      const { error: orderError } = await supabase
+        .from("orders")
+        .update({
+          status: "completed",
+          terminated_at: new Date().toISOString(),
+        })
+        .eq("id", currentOrder.id);
 
-    if (orderError) {
-      console.error("Error completing order:", orderError);
-      toast({
+      if (orderError) throw orderError;
+
+      // Update table status
+      const { error: tableError } = await supabase
+        .from("tables")
+        .update({ status: "available" })
+        .eq("id", selectedTable.id);
+
+      if (tableError) throw tableError;
+
+      // Delete QR code
+      const { error: qrDeleteError } = await supabase
+        .from("qr_codes")
+        .delete()
+        .eq("order_id", currentOrder.id);
+
+      if (qrDeleteError) {
+        console.error("Error deleting QR code:", qrDeleteError);
+        toast({
+          title: "Warning",
+          description: "Failed to delete QR code, but table was terminated.",
+        });
+      }
+
+      setSelectedTable(null);
+      setCurrentOrder(null);
+      fetchTables();
+
+      Swal.fire({
+        title: "Success",
+        text: "Table has been terminated and QR code deleted.",
+        icon: "success",
+      });
+    } catch (error) {
+      console.error("Error terminating table:", error);
+      Swal.fire({
         title: "Error",
-        description: "Failed to complete order. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error: tableError } = await supabase
-      .from("tables")
-      .update({ status: "available" })
-      .eq("id", selectedTable.id);
-
-    if (tableError) {
-      console.error("Error updating table status:", tableError);
-      toast({
-        title: "Error",
-        description: "Failed to update table status. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error: qrCodeError } = await supabase
-      .from("qr_codes")
-      .update({ expired_at: new Date().toISOString() })
-      .eq("order_id", currentOrder.id);
-
-    if (qrCodeError) {
-      console.error("Error expiring QR code:", qrCodeError);
-      toast({
-        title: "Warning",
-        description: "Failed to expire QR code, but table was terminated.",
+        text: "Failed to terminate table. Please try again.",
+        icon: "error",
       });
     }
-
-    setSelectedTable(null);
-    setCurrentOrder(null);
-    fetchTables();
-    toast({
-      title: "Table Terminated",
-      description: "Table has been terminated and is now available.",
-    });
   };
 
   return (
@@ -261,7 +287,18 @@ export default function TableManagement() {
             onClick={() => handleTableClick(table)}
           >
             <CardHeader>
-              <CardTitle>Table {table.table_number}</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Table {table.table_number}</CardTitle>
+                <Button
+                  className="bg-red-600 hover:bg-red-400 px-3 rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteTable(table.id);
+                  }}
+                >
+                  <Trash stroke="black" width={40} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <p>Capacity: {table.capacity}</p>
@@ -284,7 +321,6 @@ export default function TableManagement() {
             <div className="space-y-2">
               <p>Status: {selectedTable.status}</p>
               <p>Capacity: {selectedTable.capacity}</p>
-              <p>Package: {currentOrder.package.name}</p>
               <p>Customers: {currentOrder.customer_count}</p>
               <p>Order Status: {currentOrder.status}</p>
               <Button
