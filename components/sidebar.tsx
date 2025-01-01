@@ -57,7 +57,7 @@ export default function SideNavbar() {
             href: "/admin/menu",
           },
           {
-            title: "DEVICES",
+            title: "TABLE",
             label: "",
             icon: TabletSmartphone,
             variant: "default",
