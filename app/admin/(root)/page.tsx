@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { CustomersToday } from "@/components/admin/dashboard/CustomerToday";
 import { AvailableTables } from "@/components/admin/dashboard/Available";
-import { MostOrdered } from "@/components/admin/dashboard/MostOrdered";
+// import { MostOrdered } from "@/components/admin/dashboard/MostOrdered";
 import { CustomerChart } from "@/components/admin/dashboard/CustomerChart";
 import { TotalGross } from "@/components/admin/dashboard/TotalGross";
 
@@ -37,7 +37,7 @@ export default function DashboardPage() {
             </Card>
           }
         >
-          <MostOrdered />
+          {/* <MostOrdered /> */}
         </Suspense>
       </div>
 
