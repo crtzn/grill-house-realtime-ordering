@@ -7,25 +7,33 @@ import { toast } from "@/components/ui/use-toast";
 import supabase from "@/lib/supabaseClient";
 import NewOrderDialog from "@/components/admin/order/newOrderDialog";
 
+interface MenuItem {
+  name: string;
+  category: string;
+}
+
+interface Table {
+  table_number: number;
+}
+
+interface Package {
+  name: string;
+}
+
+interface Order {
+  table: Table;
+  package: Package;
+  customer_count: number;
+  created_at: string;
+}
+
 interface OrderItem {
   id: string;
   order_id: string;
-  menu_item: {
-    name: string;
-    category: string;
-  };
+  menu_item: MenuItem;
   quantity: number;
   status: "pending" | "preparing" | "served";
-  order: {
-    table: {
-      table_number: number;
-    };
-    package: {
-      name: string;
-    };
-    customer_count: number;
-    created_at: string;
-  };
+  order: Order;
 }
 
 export default function OrderManagement() {
@@ -66,7 +74,7 @@ export default function OrderManagement() {
         )
       `
       )
-      .in("status", ["pending", "preparing"]) // Only fetch unserved items
+      .in("status", ["pending", "preparing"])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -77,10 +85,32 @@ export default function OrderManagement() {
         variant: "destructive",
       });
     } else {
-      setOrderItems(data || []);
+      // Transform the data to match the interface
+      const transformedData: OrderItem[] = (data || []).map((item: any) => ({
+        id: item.id,
+        order_id: item.order_id,
+        quantity: item.quantity,
+        status: item.status,
+        menu_item: {
+          name: item.menu_item?.[0]?.name || "",
+          category: item.menu_item?.[0]?.category || "",
+        },
+        order: {
+          table: {
+            table_number: item.order?.[0]?.table?.[0]?.table_number || 0,
+          },
+          package: {
+            name: item.order?.[0]?.package?.[0]?.name || "",
+          },
+          customer_count: item.order?.[0]?.customer_count || 0,
+          created_at: item.order?.[0]?.created_at || "",
+        },
+      }));
+      setOrderItems(transformedData);
     }
   };
 
+  // Rest of your component remains the same...
   const updateOrderItemStatus = async (
     orderItemId: string,
     newStatus: "preparing" | "served"
@@ -101,7 +131,6 @@ export default function OrderManagement() {
         title: "Success",
         description: `Order status updated to ${newStatus}`,
       });
-      // If status is served, it will be filtered out in the next fetch
       fetchOrderItems();
     }
   };
