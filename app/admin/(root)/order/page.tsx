@@ -3,416 +3,199 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import supabase from "@/lib/supabaseClient";
-import { QRCodeSVG } from "qrcode.react";
 import { toast } from "@/components/ui/use-toast";
+import supabase from "@/lib/supabaseClient";
+import NewOrderDialog from "@/components/admin/order/newOrderDialog";
 
 interface OrderItem {
   id: string;
+  order_id: string;
   menu_item: {
     name: string;
     category: string;
   };
   quantity: number;
-  status: "pending" | "preparing" | "served" | "cancelled";
-}
-
-interface Order {
-  id: string;
-  table: {
-    id: string;
-    table_number: number;
+  status: "pending" | "preparing" | "served";
+  order: {
+    table: {
+      table_number: number;
+    };
+    package: {
+      name: string;
+    };
+    customer_count: number;
+    created_at: string;
   };
-  package: {
-    name: string;
-  };
-  customer_count: number;
-  status: "pending" | "active" | "completed" | "cancelled";
-  created_at: string;
-  order_items: OrderItem[];
-}
-
-interface Table {
-  id: string;
-  table_number: number;
-  status: "available" | "occupied" | "inactive";
-  capacity: number;
-}
-
-interface Package {
-  id: string;
-  name: string;
 }
 
 export default function OrderManagement() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [newCustomer, setNewCustomer] = useState({
-    table_id: "",
-    package_id: "",
-    customer_count: "",
-  });
-  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
-  const [qrCode, setQrCode] = useState("");
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
   useEffect(() => {
-    fetchOrders();
-    fetchTables();
-    fetchPackages();
-
-    const ordersChannel = supabase
-      .channel("orders")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => fetchOrders()
-      )
-      .subscribe();
+    fetchOrderItems();
 
     const orderItemsChannel = supabase
       .channel("order_items")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "order_items" },
-        () => fetchOrders()
+        () => fetchOrderItems()
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(ordersChannel);
       supabase.removeChannel(orderItemsChannel);
     };
   }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrderItems = async () => {
     const { data, error } = await supabase
-      .from("orders")
+      .from("order_items")
       .select(
         `
         id,
+        order_id,
+        quantity,
         status,
-        customer_count,
-        created_at,
-        table:tables (id, table_number),
-        package:packages (name),
-        order_items (
-          id,
-          quantity,
-          status,
-          menu_item:menu_items (name, category)
+        menu_item:menu_items (name, category),
+        order:orders (
+          table:tables (table_number),
+          package:packages (name),
+          customer_count,
+          created_at
         )
       `
       )
-      .order("created_at", { ascending: false })
-      .eq("status", "active");
+      .in("status", ["pending", "preparing"]) // Only fetch unserved items
+      .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error fetching orders:", error);
+      console.error("Error fetching order items:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch orders. Please try again.",
+        description: "Failed to fetch orders",
         variant: "destructive",
       });
-    } else if (data) {
-      setOrders(data);
+    } else {
+      setOrderItems(data || []);
     }
   };
 
-  const fetchTables = async () => {
-    const { data, error } = await supabase
-      .from("tables")
-      .select("*")
-      .eq("status", "available");
+  const updateOrderItemStatus = async (
+    orderItemId: string,
+    newStatus: "preparing" | "served"
+  ) => {
+    const { error } = await supabase
+      .from("order_items")
+      .update({ status: newStatus })
+      .eq("id", orderItemId);
+
     if (error) {
-      console.error("Error fetching tables:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch available tables. Please try again.",
+        description: `Failed to update order status to ${newStatus}`,
         variant: "destructive",
       });
-    } else if (data) {
-      setTables(data);
+    } else {
+      toast({
+        title: "Success",
+        description: `Order status updated to ${newStatus}`,
+      });
+      // If status is served, it will be filtered out in the next fetch
+      fetchOrderItems();
     }
   };
 
-  const fetchPackages = async () => {
-    const { data, error } = await supabase
-      .from("packages")
-      .select("*")
-      .eq("is_available", true);
-    if (error) {
-      console.error("Error fetching packages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch available packages. Please try again.",
-        variant: "destructive",
-      });
-    } else if (data) {
-      setPackages(data);
-    }
-  };
-
-  const handleAddCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        table_id: newCustomer.table_id,
-        package_id: newCustomer.package_id,
-        customer_count: parseInt(newCustomer.customer_count),
-        status: "active",
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error("Error creating order:", orderError);
-      toast({
-        title: "Error",
-        description: "Failed to create order. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { data: qrCodeData, error: qrCodeError } = await supabase
-      .from("qr_codes")
-      .insert({
-        order_id: orderData.id,
-        code: `http://localhost:3000/customer?order=${orderData.id}`,
-      })
-      .select()
-      .single();
-
-    if (qrCodeError) {
-      console.error("Error creating QR code:", qrCodeError);
-      toast({
-        title: "Error",
-        description: "Failed to generate QR code. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    await supabase
-      .from("tables")
-      .update({ status: "occupied" })
-      .eq("id", newCustomer.table_id);
-
-    setQrCode(qrCodeData.code);
-    setNewCustomer({ table_id: "", package_id: "", customer_count: "" });
-    setIsAddingCustomer(false);
-    fetchTables();
-    fetchOrders();
-    toast({
-      title: "Customer Added",
-      description: "New customer has been added successfully.",
-    });
-  };
-
-  const completeOrder = async (orderId: string, tableId: string) => {
-    const { error: orderError } = await supabase
-      .from("orders")
-      .update({ status: "completed", terminated_at: new Date().toISOString() })
-      .eq("id", orderId);
-
-    if (orderError) {
-      console.error("Error completing order:", orderError);
-      toast({
-        title: "Error",
-        description: "Failed to complete order. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error: tableError } = await supabase
-      .from("tables")
-      .update({ status: "available" })
-      .eq("id", tableId);
-
-    if (tableError) {
-      console.error("Error updating table status:", tableError);
-      toast({
-        title: "Error",
-        description: "Failed to update table status. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error: qrCodeError } = await supabase
-      .from("qr_codes")
-      .update({ expired_at: new Date().toISOString() })
-      .eq("order_id", orderId);
-
-    if (qrCodeError) {
-      console.error("Error expiring QR code:", qrCodeError);
-      toast({
-        title: "Warning",
-        description: "Failed to expire QR code, but order was completed.",
-        variant: "destructive",
-      });
-    }
-
-    fetchOrders();
-    fetchTables();
-    toast({
-      title: "Order Completed",
-      description: "Order has been completed and table is now available.",
-    });
-  };
+  // Group order items by table
+  const ordersByTable = orderItems.reduce(
+    (acc, item) => {
+      const tableNumber = item.order.table.table_number;
+      if (!acc[tableNumber]) {
+        acc[tableNumber] = {
+          tableNumber,
+          packageName: item.order.package.name,
+          customerCount: item.order.customer_count,
+          createdAt: item.order.created_at,
+          items: [],
+        };
+      }
+      acc[tableNumber].items.push(item);
+      return acc;
+    },
+    {} as Record<
+      number,
+      {
+        tableNumber: number;
+        packageName: string;
+        customerCount: number;
+        createdAt: string;
+        items: OrderItem[];
+      }
+    >
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Order Management</h1>
-        <Dialog open={isAddingCustomer} onOpenChange={setIsAddingCustomer}>
-          <DialogTrigger asChild>
-            <Button className="bg-black px-7 py-7 rounded-xl text-white hover:bg-[#242424] hover:text-white">
-              Add New Customer
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-white">
-            <DialogHeader>
-              <DialogTitle>Add New Customer</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddCustomer} className="space-y-4">
-              <div>
-                <Label htmlFor="table">Table</Label>
-                <Select
-                  value={newCustomer.table_id}
-                  onValueChange={(value) =>
-                    setNewCustomer({ ...newCustomer, table_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select table" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    {tables.map((table) => (
-                      <SelectItem key={table.id} value={table.id}>
-                        Table {table.table_number} (Capacity: {table.capacity})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="package">Package</Label>
-                <Select
-                  value={newCustomer.package_id}
-                  onValueChange={(value) =>
-                    setNewCustomer({ ...newCustomer, package_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select package" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    {packages.map((pkg) => (
-                      <SelectItem key={pkg.id} value={pkg.id}>
-                        {pkg.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="customer_count">Number of Customers</Label>
-                <Input
-                  id="customer_count"
-                  type="number"
-                  value={newCustomer.customer_count}
-                  onChange={(e) =>
-                    setNewCustomer({
-                      ...newCustomer,
-                      customer_count: e.target.value,
-                    })
-                  }
-                  min="1"
-                  required
-                />
-              </div>
-              <Button type="submit">Add Customer</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <h1 className="text-2xl font-bold">Active Orders</h1>
+        <NewOrderDialog onOrderCreated={fetchOrderItems} />
       </div>
-      {qrCode && (
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Customer QR Code</h2>
-          <QRCodeSVG value={qrCode} />
-          <Button
-            onClick={() => {
-              const svgString = new XMLSerializer().serializeToString(
-                document.querySelector("svg")!
-              );
-              const blob = new Blob([svgString], {
-                type: "image/svg+xml;charset=utf-8",
-              });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = "qrcode.svg";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="mt-2"
-          >
-            Download QR Code
-          </Button>
-        </div>
-      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {orders.map((order) => (
-          <Card key={order.id}>
-            <CardHeader>
-              <CardTitle>
-                Table {order.table.table_number} - {order.package.name}
+        {Object.values(ordersByTable).map((tableData) => (
+          <Card key={tableData.tableNumber} className="shadow-lg">
+            <CardHeader className="bg-gray-50">
+              <CardTitle className="flex justify-between">
+                <span>Table {tableData.tableNumber}</span>
+                <span className="text-sm text-gray-500">
+                  {tableData.packageName}
+                </span>
               </CardTitle>
+              <div className="text-sm text-gray-600">
+                Customers: {tableData.customerCount}
+              </div>
+              <div className="text-xs text-gray-500">
+                Created: {new Date(tableData.createdAt).toLocaleString()}
+              </div>
             </CardHeader>
             <CardContent>
-              <p>Customers: {order.customer_count}</p>
-              <p>Created: {new Date(order.created_at).toLocaleString()}</p>
-              <h3 className="font-semibold mt-2">Items:</h3>
-              <ul>
-                {order.order_items.map((item) => (
-                  <li
+              <div className="space-y-4">
+                {tableData.items.map((item) => (
+                  <div
                     key={item.id}
-                    className="flex justify-between items-center"
+                    className="flex items-center justify-between border-b pb-2"
                   >
-                    <span>
-                      {item.menu_item.name} - {item.quantity}{" "}
-                      {item.menu_item.category === "drink" ? "pc" : "kg"}
-                    </span>
-                  </li>
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {item.menu_item.name} × {item.quantity}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Status: {item.status}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() =>
+                          updateOrderItemStatus(item.id, "preparing")
+                        }
+                        className="bg-yellow-500 hover:bg-yellow-600"
+                        disabled={item.status !== "pending"}
+                        size="sm"
+                      >
+                        Prepare
+                      </Button>
+                      <Button
+                        onClick={() => updateOrderItemStatus(item.id, "served")}
+                        className="bg-green-500 hover:bg-green-600"
+                        disabled={item.status !== "preparing"}
+                        size="sm"
+                      >
+                        Serve
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </ul>
-              <Button
-                onClick={() => completeOrder(order.id, order.table.id)}
-                className="mt-4"
-              >
-                Complete Order
-              </Button>
+              </div>
             </CardContent>
           </Card>
         ))}

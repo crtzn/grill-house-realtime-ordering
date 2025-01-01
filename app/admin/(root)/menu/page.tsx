@@ -21,6 +21,7 @@ import Image from "next/image";
 import { toast } from "@/components/ui/use-toast";
 import Swal from "sweetalert2";
 import { set } from "react-hook-form";
+import PackageModal from "@/components/admin/menu/PackageModal";
 
 type Category = "main" | "side" | "drink" | "all";
 
@@ -68,6 +69,31 @@ export default function MenuPage() {
     fetchMenuitems();
     fetchPackages();
   });
+
+  async function handleDeletePackages(pkg: string) {
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it!",
+      confirmButtonColor: "#3085d6",
+      cancelButtonText: "Cancel",
+      cancelButtonColor: "#d33",
+    });
+    if (result.isConfirmed) {
+      const { error } = await supabase.from("packages").delete().eq("id", pkg);
+      if (error) {
+        Swal.fire(
+          "Error",
+          "Failed to delete menu item. Please try again.",
+          "error"
+        );
+      } else {
+        Swal.fire("Deleted!", "Menu item has been deleted.", "success");
+      }
+    }
+  }
 
   async function handleDeleteMenuItem(id: string) {
     const result = await Swal.fire({
