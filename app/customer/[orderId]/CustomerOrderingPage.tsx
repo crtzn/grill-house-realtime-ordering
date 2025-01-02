@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import supabase from "@/lib/supabaseClient";
 import Image from "next/image";
+import { Plus, Minus, Trash2 } from "lucide-react";
 
 type MenuItem = {
   id: string;
@@ -53,10 +54,8 @@ export default function CustomerOrderingPage({
     );
     setMenuItems(menuItems);
 
-    // Fetch existing order items
     fetchOrderItems();
 
-    // Set up real-time subscription for order items
     const orderItemsSubscription = supabase
       .channel("order-items")
       .on(
@@ -93,20 +92,52 @@ export default function CustomerOrderingPage({
   };
 
   const addToOrder = async (menuItem: MenuItem) => {
-    const { data, error } = await supabase
-      .from("order_items")
-      .insert({
+    const existingItem = orderItems.find(
+      (item) => item.menu_item_id === menuItem.id && item.status === "pending"
+    );
+
+    if (existingItem) {
+      await updateOrderItemQuantity(existingItem.id, existingItem.quantity + 1);
+    } else {
+      const { error } = await supabase.from("order_items").insert({
         order_id: order.id,
         menu_item_id: menuItem.id,
         quantity: 1,
         status: "pending",
-      })
-      .select();
+      });
+
+      if (error) {
+        console.error("Error adding item to order:", error);
+      }
+    }
+  };
+
+  const updateOrderItemQuantity = async (
+    orderItemId: string,
+    newQuantity: number
+  ) => {
+    if (newQuantity < 1) {
+      await removeOrderItem(orderItemId);
+    } else {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ quantity: newQuantity })
+        .eq("id", orderItemId);
+
+      if (error) {
+        console.error("Error updating order item quantity:", error);
+      }
+    }
+  };
+
+  const removeOrderItem = async (orderItemId: string) => {
+    const { error } = await supabase
+      .from("order_items")
+      .delete()
+      .eq("id", orderItemId);
 
     if (error) {
-      console.error("Error adding item to order:", error);
-    } else {
-      setOrderItems([...orderItems, data[0]]);
+      console.error("Error removing order item:", error);
     }
   };
 
@@ -172,7 +203,7 @@ export default function CustomerOrderingPage({
               <p className="text-sm">{item.description}</p>
               <button
                 onClick={() => addToOrder(item)}
-                className="mt-2 bg-green-500 text-white px-4 py-2 rounded"
+                className="mt-2 bg-green-500 text-white px-4 py-2 rounded w-full"
               >
                 Add to Order
               </button>
@@ -182,7 +213,7 @@ export default function CustomerOrderingPage({
       </div>
       <div className="w-1/4 bg-gray-100 p-4 overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">Your Order</h2>
-        {["ordering", "pending", "preparing", "served"].map((stage) => (
+        {["pending", "preparing", "served"].map((stage) => (
           <div key={stage} className="mb-4">
             <h3 className="font-bold capitalize">{stage}</h3>
             {orderItems
@@ -194,20 +225,39 @@ export default function CustomerOrderingPage({
                 return (
                   <div
                     key={item.id}
-                    className="flex justify-between items-center"
+                    className="flex justify-between items-center mb-2"
                   >
-                    <span>
-                      {menuItem?.name} x {item.quantity}
-                    </span>
-                    {stage === "ordering" && (
-                      <button
-                        onClick={() =>
-                          updateOrderItemStatus(item.id, "pending")
-                        }
-                        className="text-sm bg-blue-500 text-white px-2 py-1 rounded"
-                      >
-                        Confirm
-                      </button>
+                    <span>{menuItem?.name}</span>
+                    {stage === "pending" ? (
+                      <div className="flex items-center">
+                        <button
+                          onClick={() =>
+                            updateOrderItemQuantity(item.id, item.quantity - 1)
+                          }
+                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="bg-white px-2 py-1">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateOrderItemQuantity(item.id, item.quantity + 1)
+                          }
+                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => removeOrderItem(item.id)}
+                          className="ml-2 text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span>x {item.quantity}</span>
                     )}
                   </div>
                 );
