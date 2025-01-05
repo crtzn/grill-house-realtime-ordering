@@ -50,7 +50,7 @@ export default function OrderManagement() {
       setOrders(
         data.map((order) => ({
           ...order,
-          table_number: order.tables.table_number,
+          table_number: order.tables[0].table_number,
         }))
       );
     }
@@ -79,7 +79,7 @@ export default function OrderManagement() {
       setOrderItems(
         data.map((item) => ({
           ...item,
-          menu_item_name: item.menu_items.name,
+          menu_item_name: item.menu_items[0].name,
         }))
       );
     }
