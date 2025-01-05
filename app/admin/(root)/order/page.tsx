@@ -1,234 +1,189 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/components/ui/use-toast";
+import { useEffect, useState } from "react";
 import supabase from "@/lib/supabaseClient";
 import NewOrderDialog from "@/components/admin/order/newOrderDialog";
 
-interface MenuItem {
-  name: string;
-  category: string;
-}
-
-interface Table {
-  table_number: number;
-}
-
-interface Package {
-  name: string;
-}
-
+// TypeScript interfaces
 interface Order {
-  table: Table;
-  package: Package;
-  customer_count: number;
-  created_at: string;
+  id: string;
+  table_number: number;
+  status: string;
 }
 
 interface OrderItem {
   id: string;
   order_id: string;
-  menu_item: MenuItem;
+  menu_item_id: string;
   quantity: number;
-  status: "pending" | "preparing" | "served";
-  order: Order;
+  status: string;
+  menu_item_name: string;
 }
 
 export default function OrderManagement() {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
   useEffect(() => {
+    fetchOrders();
     fetchOrderItems();
-
-    const orderItemsChannel = supabase
-      .channel("order_items")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_items" },
-        () => fetchOrderItems()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(orderItemsChannel);
-    };
   }, []);
 
-  const fetchOrderItems = async () => {
+  async function fetchOrders() {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(
+        `
+        id,
+        status,
+        tables (
+          table_number
+        )
+      `
+      )
+      .neq("status", "completed") // Exclude completed orders
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching orders:", error);
+    } else {
+      setOrders(
+        data.map((order) => ({
+          ...order,
+          table_number: order.tables.table_number,
+        }))
+      );
+    }
+  }
+
+  async function fetchOrderItems() {
     const { data, error } = await supabase
       .from("order_items")
       .select(
         `
         id,
         order_id,
+        menu_item_id,
         quantity,
         status,
-        menu_item:menu_items (name, category),
-        order:orders (
-          table:tables (table_number),
-          package:packages (name),
-          customer_count,
-          created_at
+        menu_items (
+          name
         )
       `
       )
-      .in("status", ["pending", "preparing"])
-      .order("created_at", { ascending: true });
+      .order("id", { ascending: true });
 
     if (error) {
       console.error("Error fetching order items:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch orders",
-        variant: "destructive",
-      });
     } else {
-      // Transform the data to match the interface
-      const transformedData: OrderItem[] = (data || []).map((item: any) => ({
-        id: item.id,
-        order_id: item.order_id,
-        quantity: item.quantity,
-        status: item.status,
-        menu_item: {
-          name: item.menu_item?.[0]?.name || "",
-          category: item.menu_item?.[0]?.category || "",
-        },
-        order: {
-          table: {
-            table_number: item.order?.[0]?.table?.[0]?.table_number || 0,
-          },
-          package: {
-            name: item.order?.[0]?.package?.[0]?.name || "",
-          },
-          customer_count: item.order?.[0]?.customer_count || 0,
-          created_at: item.order?.[0]?.created_at || "",
-        },
-      }));
-      setOrderItems(transformedData);
+      setOrderItems(
+        data.map((item) => ({
+          ...item,
+          menu_item_name: item.menu_items.name,
+        }))
+      );
     }
-  };
+  }
 
-  // Rest of your component remains the same...
-  const updateOrderItemStatus = async (
-    orderItemId: string,
-    newStatus: "preparing" | "served"
-  ) => {
+  async function updateOrderItemStatus(
+    itemId: string,
+    newStatus: string,
+    orderId: string
+  ) {
     const { error } = await supabase
       .from("order_items")
       .update({ status: newStatus })
-      .eq("id", orderItemId);
+      .eq("id", itemId);
 
     if (error) {
-      toast({
-        title: "Error",
-        description: `Failed to update order status to ${newStatus}`,
-        variant: "destructive",
-      });
+      console.error("Error updating order item status:", error);
     } else {
-      toast({
-        title: "Success",
-        description: `Order status updated to ${newStatus}`,
-      });
+      if (newStatus === "served") {
+        const { data: remainingItems } = await supabase
+          .from("order_items")
+          .select("id")
+          .eq("order_id", orderId)
+          .neq("status", "served");
+
+        if (remainingItems && remainingItems.length === 0) {
+          await supabase
+            .from("orders")
+            .update({ status: "completed" })
+            .eq("id", orderId);
+        }
+      }
+      // Refresh orders and order items after update
+      fetchOrders();
       fetchOrderItems();
     }
+  }
+
+  const handleOrderCreated = () => {
+    fetchOrders();
+    fetchOrderItems();
   };
 
-  // Group order items by table
-  const ordersByTable = orderItems.reduce(
-    (acc, item) => {
-      const tableNumber = item.order.table.table_number;
-      if (!acc[tableNumber]) {
-        acc[tableNumber] = {
-          tableNumber,
-          packageName: item.order.package.name,
-          customerCount: item.order.customer_count,
-          createdAt: item.order.created_at,
-          items: [],
-        };
-      }
-      acc[tableNumber].items.push(item);
-      return acc;
-    },
-    {} as Record<
-      number,
-      {
-        tableNumber: number;
-        packageName: string;
-        customerCount: number;
-        createdAt: string;
-        items: OrderItem[];
-      }
-    >
-  );
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Active Orders</h1>
-        <NewOrderDialog onOrderCreated={fetchOrderItems} />
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold mb-4">Order Management</h1>
+        <NewOrderDialog onOrderCreated={handleOrderCreated} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Object.values(ordersByTable).map((tableData) => (
-          <Card key={tableData.tableNumber} className="shadow-lg">
-            <CardHeader className="bg-gray-50">
-              <CardTitle className="flex justify-between">
-                <span>Table {tableData.tableNumber}</span>
-                <span className="text-sm text-gray-500">
-                  {tableData.packageName}
-                </span>
-              </CardTitle>
-              <div className="text-sm text-gray-600">
-                Customers: {tableData.customerCount}
-              </div>
-              <div className="text-xs text-gray-500">
-                Created: {new Date(tableData.createdAt).toLocaleString()}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {tableData.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between border-b pb-2"
-                  >
-                    <div className="flex-1">
-                      <div className="font-medium">
-                        {item.menu_item.name} × {item.quantity}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Status: {item.status}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() =>
-                          updateOrderItemStatus(item.id, "preparing")
-                        }
-                        className="bg-yellow-500 hover:bg-yellow-600"
-                        disabled={item.status !== "pending"}
-                        size="sm"
-                      >
-                        Prepare
-                      </Button>
-                      <Button
-                        onClick={() => updateOrderItemStatus(item.id, "served")}
-                        className="bg-green-500 hover:bg-green-600"
-                        disabled={item.status !== "preparing"}
-                        size="sm"
-                      >
-                        Serve
-                      </Button>
-                    </div>
+      {orders.map((order) => {
+        const activeItems = orderItems.filter(
+          (item) => item.order_id === order.id && item.status !== "served"
+        );
+        if (activeItems.length === 0) return null; // Don't render orders with no active items
+
+        return (
+          <div key={order.id} className="mb-8 p-4 border rounded shadow">
+            <h2 className="text-xl font-semibold mb-2">
+              Order for Table {order.table_number} - Status: {order.status}
+            </h2>
+            <div className="space-y-4">
+              {activeItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-2 bg-gray-100 rounded"
+                >
+                  <div>
+                    <span className="font-medium">{item.menu_item_name}</span>
+                    <span className="ml-2 text-sm text-gray-600">
+                      Quantity: {item.quantity}
+                    </span>
+                    <span className="ml-2 text-sm text-gray-600">
+                      Status: {item.status}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  <div>
+                    {item.status === "pending" && (
+                      <button
+                        onClick={() =>
+                          updateOrderItemStatus(item.id, "preparing", order.id)
+                        }
+                        className="px-3 py-1 bg-yellow-500 text-white rounded mr-2"
+                      >
+                        Preparing
+                      </button>
+                    )}
+                    {item.status === "preparing" && (
+                      <button
+                        onClick={() =>
+                          updateOrderItemStatus(item.id, "served", order.id)
+                        }
+                        className="px-3 py-1 bg-green-500 text-white rounded"
+                      >
+                        Served
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
