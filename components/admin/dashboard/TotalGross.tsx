@@ -20,6 +20,15 @@ interface IncomeData {
   todayIncome: number;
 }
 
+interface OrderData {
+  id: string;
+  customer_count: number;
+  created_at: string;
+  packages: {
+    price: number;
+  };
+}
+
 export function TotalGross() {
   const [incomeData, setIncomeData] = useState<IncomeData>({
     totalGross: 0,
@@ -58,10 +67,9 @@ export function TotalGross() {
       let yesterdayIncome = 0;
       let todayIncome = 0;
 
-      data.forEach((order) => {
+      (data as unknown as OrderData[]).forEach((order) => {
         const orderDate = new Date(order.created_at);
-        const orderTotal =
-          parseFloat(order.packages.price) * order.customer_count;
+        const orderTotal = order.packages.price * order.customer_count;
 
         totalGross += orderTotal;
 
@@ -102,7 +110,6 @@ export function TotalGross() {
       ? (incomeChange / incomeData.yesterdayIncome) * 100
       : 0;
 
-  // Function to get month name
   const getMonthName = (monthNum: string) => {
     const months = [
       "January",
@@ -121,11 +128,10 @@ export function TotalGross() {
     return months[parseInt(monthNum) - 1];
   };
 
-  // Transform monthly data for chart
   const chartData = Object.entries(incomeData.monthlyIncome)
     .map(([month, income]) => ({
-      month: month.split("-")[1], // Keep month number for sorting
-      monthName: getMonthName(month.split("-")[1]), // Add month name
+      month: month.split("-")[1],
+      monthName: getMonthName(month.split("-")[1]),
       income: income,
     }))
     .sort((a, b) => parseInt(a.month) - parseInt(b.month));
