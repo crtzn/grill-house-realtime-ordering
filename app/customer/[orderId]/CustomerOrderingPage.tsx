@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import supabase from "@/lib/supabaseClient";
 import Image from "next/image";
-import { Plus, Minus, Trash2, Menu, X } from "lucide-react";
-import { DigitalReceiptModal } from "@/app/customer/[orderId]/DigitalReceiptModal";
+import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { table } from "console";
 
 type MenuItem = {
   id: string;
@@ -13,7 +14,6 @@ type MenuItem = {
   category: string;
   image_url: string;
   is_available: boolean;
-  price: number; // Added price field
 };
 
 type OrderItem = {
@@ -49,15 +49,26 @@ export default function CustomerOrderingPage({
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [showCart, setShowCart] = useState(false);
 
   useEffect(() => {
-    const menuItems = order.packages.package_items.map(
-      (item) => item.menu_items
-    );
-    setMenuItems(menuItems);
+    const fetchMenuItems = async () => {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select("*")
+        .in(
+          "id",
+          order.packages.package_items.map((item) => item.menu_items.id)
+        );
 
+      if (error) {
+        console.error("Error fetching menu items:", error);
+      } else {
+        setMenuItems(data);
+      }
+    };
+
+    fetchMenuItems();
     fetchOrderItems();
 
     const orderItemsSubscription = supabase
@@ -71,30 +82,34 @@ export default function CustomerOrderingPage({
           filter: `order_id=eq.${order.id}`,
         },
         (payload) => {
-          console.log("Change received!", payload);
+          console.log("Order item change received!", payload);
           fetchOrderItems();
+        }
+      )
+      .subscribe();
+
+    const menuItemsSubscription = supabase
+      .channel("menu-items")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "menu_items" },
+        (payload) => {
+          console.log("Menu item change received!", payload);
+          fetchMenuItems();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(orderItemsSubscription);
+      supabase.removeChannel(menuItemsSubscription);
     };
   }, [order.id]);
 
   const fetchOrderItems = async () => {
     const { data, error } = await supabase
       .from("order_items")
-      .select(
-        `
-      *,
-      menu_items:menu_item_id (
-        id,
-        name,
-        price
-      )
-    `
-      )
+      .select("*")
       .eq("order_id", order.id);
 
     if (error) {
@@ -105,7 +120,10 @@ export default function CustomerOrderingPage({
   };
 
   const addToOrder = async (menuItem: MenuItem) => {
-    if (!menuItem.is_available) return;
+    if (!menuItem.is_available) {
+      console.error("This item is not available");
+      return;
+    }
 
     const existingItem = orderItems.find(
       (item) => item.menu_item_id === menuItem.id && item.status === "pending"
@@ -153,6 +171,11 @@ export default function CustomerOrderingPage({
 
     if (error) {
       console.error("Error removing order item:", error);
+    } else {
+      // Update the state to reflect the deletion
+      setOrderItems((prevOrderItems) =>
+        prevOrderItems.filter((item) => item.id !== orderItemId)
+      );
     }
   };
 
@@ -171,35 +194,8 @@ export default function CustomerOrderingPage({
   };
 
   const checkout = async () => {
-    // Here you would typically update the order status in the database
-    // For now, we'll just open the receipt modal
-    setIsReceiptModalOpen(true);
-  };
-
-  const closeReceiptModal = () => {
-    setIsReceiptModalOpen(false);
-  };
-
-  const calculateTotal = () => {
-    return orderItems.reduce((total, item) => {
-      const menuItem = menuItems.find((mi) => mi.id === item.menu_item_id);
-      // Assuming each menu item has a price field. If not, you'll need to adjust this.
-      const price = menuItem?.price || 0;
-      return total + price * item.quantity;
-    }, 0);
-  };
-
-  const receiptItems = orderItems.map((item) => {
-    const menuItem = menuItems.find((mi) => mi.id === item.menu_item_id);
-    return {
-      name: menuItem?.name || "Unknown Item",
-      quantity: item.quantity,
-      price: menuItem?.price || 0, // Assuming each menu item has a price field
-    };
-  });
-
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+    // Implement checkout logic here
+    console.log("Checkout clicked");
   };
 
   const categories = Array.from(
@@ -210,56 +206,73 @@ export default function CustomerOrderingPage({
     ? menuItems.filter((item) => item.category === selectedCategory)
     : menuItems;
 
+  const pendingItemsCount = orderItems.filter(
+    (item) => item.status === "pending"
+  ).length;
+
   return (
     <div className="flex flex-col h-screen md:flex-row">
-      <div className="w-full md:w-3/4 p-4 overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">
-            Table {order.tables.table_number}
-          </h1>
-          <button
-            onClick={toggleSidebar}
-            className="md:hidden bg-blue-500 text-white p-2 rounded"
-          >
-            <Menu />
-          </button>
+      {/* Mobile Cart Toggle Button */}
+      <button
+        onClick={() => setShowCart(!showCart)}
+        className="fixed bottom-4 right-4 md:hidden z-50 bg-red-500 text-white p-4 rounded-full shadow-lg"
+      >
+        <ShoppingCart className="w-6 h-6" />
+        {pendingItemsCount > 0 && (
+          <span className="absolute -top-2 -right-2  bg-[#212121]  text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+            {pendingItemsCount}
+          </span>
+        )}
+      </button>
+
+      {/* Menu Section */}
+      <div
+        className={`w-full md:w-3/4 p-4 overflow-y-auto ${
+          showCart ? "hidden md:block" : "block"
+        }`}
+      >
+        <h1 className="text-2xl font-bold mb-4">
+          Table {order.tables.table_number}
+        </h1>
+
+        {/* Categories Scrollable Container */}
+        <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2">
+          <div className="inline-flex">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`mr-2 px-4 py-2 rounded whitespace-nowrap ${
+                  selectedCategory === category
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200"
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mb-4 flex flex-wrap">
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`mr-2 mb-2 px-4 py-2 rounded ${
-                selectedCategory === category
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200"
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+
+        {/* Menu Section */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMenuItems.map((item) => (
-            <div key={item.id} className="border p-4 rounded relative">
-              <div className="relative">
+            <div key={item.id} className="border p-4 rounded">
+              <div className="relative w-full pt-[75%]">
                 <Image
                   src={item.image_url}
                   alt={item.name}
-                  width={200}
-                  height={200}
-                  className="w-full h-40 object-cover mb-2"
+                  fill
+                  className="absolute top-0 left-0 w-full h-full object-cover rounded"
                 />
-                {!item.is_available && (
-                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">
-                      Unavailable
-                    </span>
-                  </div>
-                )}
               </div>
-              <h3 className="font-bold">{item.name}</h3>
-              <p className="text-sm">{item.description}</p>
+              <div>
+                <div>
+                  <h3 className="font-bold mt-2">{item.name}</h3>
+                  <p className="text-sm text-gray-600">{item.description}</p>
+                </div>
+              </div>
+
               <button
                 onClick={() => addToOrder(item)}
                 className={`mt-2 px-4 py-2 rounded w-full ${
@@ -275,23 +288,25 @@ export default function CustomerOrderingPage({
           ))}
         </div>
       </div>
+
+      {/* Cart Section */}
       <div
-        className={`w-full md:w-1/4 bg-gray-100 p-4 overflow-y-auto fixed inset-y-0 right-0 transform ${
-          isSidebarOpen ? "translate-x-0" : "translate-x-full"
-        } md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}
+        className={`w-full md:w-1/4 bg-gray-100 p-4 overflow-y-auto fixed md:static inset-0 z-40 transform transition-transform duration-300 ease-in-out ${
+          showCart ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        }`}
       >
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Your Order</h2>
-          <button
-            onClick={toggleSidebar}
-            className="md:hidden bg-red-500 text-white p-2 rounded"
-          >
-            <X />
-          </button>
-        </div>
+        {/* Mobile Close Button */}
+        <button
+          onClick={() => setShowCart(false)}
+          className="md:hidden absolute top-4 right-4 text-gray-600"
+        >
+          ✕
+        </button>
+
+        <h2 className="text-xl font-bold mb-4">Your Order</h2>
         {["pending", "preparing", "served"].map((stage) => (
           <div key={stage} className="mb-4">
-            <h3 className="font-bold capitalize">{stage}</h3>
+            <h3 className="font-bold capitalize mb-2">{stage}</h3>
             {orderItems
               .filter((item) => item.status === stage)
               .map((item) => {
@@ -301,9 +316,11 @@ export default function CustomerOrderingPage({
                 return (
                   <div
                     key={item.id}
-                    className="flex justify-between items-center mb-2"
+                    className="flex flex-wrap justify-between items-center mb-2 bg-white p-2 rounded"
                   >
-                    <span>{menuItem?.name}</span>
+                    <span className="w-full sm:w-auto mb-2 sm:mb-0">
+                      {menuItem?.name}
+                    </span>
                     {stage === "pending" ? (
                       <div className="flex items-center">
                         <button
@@ -347,13 +364,6 @@ export default function CustomerOrderingPage({
           Checkout
         </button>
       </div>
-      <DigitalReceiptModal
-        isOpen={isReceiptModalOpen}
-        onClose={closeReceiptModal}
-        tableNumber={order.tables.table_number}
-        items={receiptItems}
-        total={calculateTotal()}
-      />
     </div>
   );
 }

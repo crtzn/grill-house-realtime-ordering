@@ -29,45 +29,50 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <Card className="w-[350px] mx-auto mt-20">
-        <CardHeader>
-          <CardTitle>Login</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin}>
-            <div className="mb-4">
-              <Input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <Button
-              type="submit"
-              className="w-full bg-black text-white active:text-black hover:bg-gray-500"
-            >
-              Login
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="flex justify-center items-center min-h-screen">
+      <div className="flex-1">
+        <Card className="w-[350px] mx-auto mt-20">
+          <CardHeader>
+            <CardTitle>Login</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin}>
+              <div className="mb-4">
+                <Input
+                  type="text"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="border-0 border-b-2 border-b-[#111111]"
+                />
+              </div>
+              <div className="mb-4">
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="border-0 border-b-2 border-b-[#111111]"
+                />
+              </div>
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <Button
+                type="submit"
+                className="w-full bg-black text-white active:bg-[#111111] hover:bg-[#212121] rounded-xl p-5 drop-shadow-xl"
+              >
+                Login
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="flex-1">Side image here</div>
     </div>
   );
 };

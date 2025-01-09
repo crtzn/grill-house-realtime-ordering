@@ -15,7 +15,14 @@ import { Label } from "@/components/ui/label";
 import supabase from "@/lib/supabaseClient";
 import { toast } from "@/components/ui/use-toast";
 import Swal from "sweetalert2";
-import { Trash } from "lucide-react";
+import { Trash, Edit } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Table {
   id: string;
@@ -26,11 +33,18 @@ interface Table {
 
 interface Order {
   id: string;
-  package: {
-    name: string;
-  };
+  package_id: string;
+  package_name: string;
   customer_count: number;
   status: "pending" | "active" | "completed" | "cancelled";
+  total_price: number;
+}
+
+interface Package {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
 }
 
 export default function TableManagement() {
@@ -39,9 +53,13 @@ export default function TableManagement() {
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [isEditingTable, setIsEditingTable] = useState(false);
+  const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [packages, setPackages] = useState<Package[]>([]);
 
   useEffect(() => {
     fetchTables();
+    fetchPackages();
 
     const tablesChannel = supabase
       .channel("tables")
@@ -72,6 +90,24 @@ export default function TableManagement() {
       });
     } else if (data) {
       setTables(data);
+    }
+  };
+
+  const fetchPackages = async () => {
+    const { data, error } = await supabase
+      .from("packages")
+      .select("*")
+      .order("price", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching packages:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch packages. Please try again.",
+        variant: "destructive",
+      });
+    } else if (data) {
+      setPackages(data);
     }
   };
 
@@ -133,33 +169,24 @@ export default function TableManagement() {
 
   const handleTableClick = async (table: Table) => {
     setSelectedTable(table);
+    console.log("Fetching order for table:", table.id);
     if (table.status === "occupied") {
       const { data, error } = await supabase
         .from("orders")
-        .select(
-          `
-            id,
-            package:packages (name),
-            customer_count,
-            status
-          `
-        )
+        .select("*")
         .eq("table_id", table.id)
         .eq("status", "active")
         .single();
 
       if (error) {
-        console.error("Error fetching current order:", error);
+        console.error("Error fetching order:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch current order. Please try again.",
+          description: "Failed to fetch order details. Please try again.",
           variant: "destructive",
         });
       } else if (data) {
-        setCurrentOrder({
-          ...data,
-          package: data.package[0],
-        });
+        setCurrentOrder(data);
       }
     } else {
       setCurrentOrder(null);
@@ -197,9 +224,10 @@ export default function TableManagement() {
 
       if (qrDeleteError) {
         console.error("Error deleting QR code:", qrDeleteError);
-        toast({
-          title: "Warning",
-          description: "Failed to delete QR code, but table was terminated.",
+        Swal.fire({
+          title: "Error",
+          text: "Failed to delete QR code. Please try again.",
+          icon: "error",
         });
       }
 
@@ -217,6 +245,78 @@ export default function TableManagement() {
       Swal.fire({
         title: "Error",
         text: "Failed to terminate table. Please try again.",
+        icon: "error",
+      });
+    }
+  };
+
+  const handleEditTable = (table: Table) => {
+    setEditingTable(table);
+    setIsEditingTable(true);
+  };
+
+  const handleUpdateTable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTable) return;
+
+    try {
+      const { error } = await supabase
+        .from("tables")
+        .update({ capacity: editingTable.capacity })
+        .eq("id", editingTable.id);
+
+      if (error) throw error;
+
+      setIsEditingTable(false);
+      setEditingTable(null);
+      fetchTables();
+
+      Swal.fire({
+        title: "Success",
+        text: "Table has been updated successfully.",
+        icon: "success",
+      });
+    } catch (error) {
+      console.error("Error updating table:", error);
+      Swal.fire({
+        title: "Error",
+        text: "Failed to update table. Please try again.",
+        icon: "error",
+      });
+    }
+  };
+
+  const handleUpgradePackage = async (packageId: string) => {
+    if (!selectedTable || !currentOrder) return;
+
+    try {
+      const selectedPackage = packages.find((pkg) => pkg.id === packageId);
+      if (!selectedPackage) throw new Error("Package not found");
+
+      const { error: orderError } = await supabase
+        .from("orders")
+        .update({
+          package_id: packageId,
+          total_price: selectedPackage.price * currentOrder.customer_count,
+        })
+        .eq("id", currentOrder.id);
+
+      if (orderError) throw orderError;
+
+      setSelectedTable(null);
+      setCurrentOrder(null);
+      fetchTables();
+
+      Swal.fire({
+        title: "Success",
+        text: "Package has been upgraded successfully.",
+        icon: "success",
+      });
+    } catch (error) {
+      console.error("Error upgrading package:", error);
+      Swal.fire({
+        title: "Error",
+        text: "Failed to upgrade package. Please try again.",
         icon: "error",
       });
     }
@@ -289,15 +389,26 @@ export default function TableManagement() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Table {table.table_number}</CardTitle>
-                <Button
-                  className="bg-red-600 hover:bg-red-400 px-3 rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteTable(table.id);
-                  }}
-                >
-                  <Trash stroke="black" width={40} />
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-400 px-3 rounded"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditTable(table);
+                    }}
+                  >
+                    <Edit stroke="white" width={20} />
+                  </Button>
+                  <Button
+                    className="bg-red-600 hover:bg-red-400 px-3 rounded"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteTable(table.id);
+                    }}
+                  >
+                    <Trash stroke="white" width={20} />
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -323,16 +434,71 @@ export default function TableManagement() {
               <p>Capacity: {selectedTable.capacity}</p>
               <p>Customers: {currentOrder.customer_count}</p>
               <p>Order Status: {currentOrder.status}</p>
+              <p>Current Package: {currentOrder.package_name}</p>
+
               <Button
                 onClick={handleTerminateTable}
                 className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
               >
                 End Session
               </Button>
+              <Select onValueChange={handleUpgradePackage}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Upgrade Package" />
+                </SelectTrigger>
+                <SelectContent>
+                  {packages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name} - ₱{pkg.price.toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </DialogContent>
         </Dialog>
       )}
+      <Dialog open={isEditingTable} onOpenChange={setIsEditingTable}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Edit Table</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateTable} className="space-y-4">
+            <div>
+              <Label htmlFor="edit_table_number">Table Number</Label>
+              <Input
+                id="edit_table_number"
+                type="number"
+                value={editingTable?.table_number || ""}
+                disabled
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit_capacity">Capacity</Label>
+              <Input
+                id="edit_capacity"
+                type="number"
+                value={editingTable?.capacity || ""}
+                onChange={(e) =>
+                  setEditingTable((prev) =>
+                    prev
+                      ? { ...prev, capacity: parseInt(e.target.value) }
+                      : null
+                  )
+                }
+                min="1"
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              className="bg-black text-white hover:bg-[#242424] hover:text-white"
+            >
+              Update Table
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
