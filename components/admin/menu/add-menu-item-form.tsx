@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import supabase from "@/lib/supabaseClient";
 import { MenuItemType, PackageType } from "@/app/types/index";
 
@@ -43,6 +43,7 @@ export default function AddMenuItemForm({
 }: {
   onSubmit: () => void;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,17 +183,16 @@ export default function AddMenuItemForm({
 
       onSubmit();
       router.refresh();
-      Swal.fire({
-        icon: "success",
-        title: "Success",
-        text: "Menu item added successfully",
+      toast({
+        description: "Menu item added successfully.",
+        variant: "default",
+        duration: 3000,
       });
     } catch (error) {
       console.error("Error adding menu item:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to add menu item!",
+      toast({
+        description: "An error occurred while adding the menu item.",
+        variant: "destructive",
       });
     }
   };

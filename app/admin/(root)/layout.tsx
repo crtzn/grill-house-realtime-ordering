@@ -1,4 +1,5 @@
 import Sidebar from "@/components/sidebar";
+import { Toaster } from "@/components/ui/toaster";
 
 export default function RootLayout({
   children,
@@ -10,7 +11,10 @@ export default function RootLayout({
       <body>
         <div className="min-h-screen w-full flex">
           <Sidebar />
-          <div className="p-8 w-full">{children}</div>
+          <div className="p-8 w-full">
+            {children}
+            <Toaster />
+          </div>
         </div>
       </body>
     </html>

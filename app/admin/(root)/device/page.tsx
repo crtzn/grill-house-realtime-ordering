@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import supabase from "@/lib/supabaseClient";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import Swal from "sweetalert2";
 import { Trash, Edit } from "lucide-react";
 import {
@@ -48,6 +48,7 @@ interface Package {
 }
 
 export default function TableManagement() {
+  const { toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [newTable, setNewTable] = useState({ table_number: "", capacity: "" });
   const [isAddingTable, setIsAddingTable] = useState(false);

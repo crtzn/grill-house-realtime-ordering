@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { MenuItemType } from "@/app/types";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import supabase from "@/lib/supabaseClient";
 import Swal from "sweetalert2";
 
@@ -33,6 +33,7 @@ export default function AddPackageForm({
   menuItems,
   onSubmit,
 }: AddPackageFormProps) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [newPackage, setNewPackage] = useState({
     name: "",

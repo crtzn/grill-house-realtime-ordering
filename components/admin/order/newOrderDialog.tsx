@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import supabase from "@/lib/supabaseClient";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -41,6 +41,7 @@ interface NewOrderDialogProps {
 export default function NewOrderDialog({
   onOrderCreated,
 }: NewOrderDialogProps) {
+  const { toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [newCustomer, setNewCustomer] = useState({

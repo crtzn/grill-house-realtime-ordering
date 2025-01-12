@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabaseClient";
 import NewOrderDialog from "@/components/admin/order/newOrderDialog";
+import { useToast } from "@/hooks/use-toast";
 
 // TypeScript interfaces
 interface Order {
@@ -21,6 +22,7 @@ interface OrderItem {
 }
 
 export default function OrderManagement() {
+  const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
