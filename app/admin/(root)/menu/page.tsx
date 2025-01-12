@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Image from "next/image";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import Swal from "sweetalert2";
 import { set } from "react-hook-form";
 import PackageModal from "@/components/admin/menu/PackageModal";
@@ -26,6 +26,7 @@ import PackageModal from "@/components/admin/menu/PackageModal";
 type Category = "main" | "side" | "drink" | "all";
 
 export default function MenuPage() {
+  const { toast } = useToast();
   const [menuItems, setMenuItems] = useState<MenuItemType[]>([]);
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category>("all");
@@ -50,24 +51,24 @@ export default function MenuPage() {
     }
   };
 
-  const fetchPackages = async () => {
-    try {
-      const { data, error } = await supabase.from("packages").select("*");
-      if (error) throw error;
-      setPackages(data || []);
-    } catch (error) {
-      console.log("Error fetching packages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch packages. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  // const fetchPackages = async () => {
+  //   try {
+  //     const { data, error } = await supabase.from("packages").select("*");
+  //     if (error) throw error;
+  //     setPackages(data || []);
+  //   } catch (error) {
+  //     console.log("Error fetching packages:", error);
+  //     toast({
+  //       title: "Error",
+  //       description: "Failed to fetch packages. Please try again.",
+  //       variant: "destructive",
+  //     });
+  //   }
+  // };
 
   useEffect(() => {
     fetchMenuitems();
-    fetchPackages();
+    // fetchPackages();
   });
 
   async function handleDeletePackages(pkg: string) {
@@ -90,7 +91,11 @@ export default function MenuPage() {
           "error"
         );
       } else {
-        Swal.fire("Deleted!", "Menu item has been deleted.", "success");
+        toast({
+          title: "Success",
+          description: "Package deleted successfully",
+          variant: "default",
+        });
       }
     }
   }
@@ -116,7 +121,11 @@ export default function MenuPage() {
           "error"
         );
       } else {
-        Swal.fire("Deleted!", "Menu item has been deleted.", "success");
+        toast({
+          title: "Success",
+          description: "Menu item deleted successfully",
+          variant: "default",
+        });
       }
     }
   }
@@ -296,11 +305,11 @@ export default function MenuPage() {
                       <div className="relative aspect-video w-full overflow-hidden rounded-md">
                         <Image
                           src={item.image_url}
+                          sizes="100%"
                           alt={item.name}
-                          layout="fill"
-                          sizes=""
-                          objectFit="cover"
+                          fill
                           className="transition-transform duration-200 hover:scale-105"
+                          style={{ objectFit: "cover" }}
                         />
                       </div>
                     )}
