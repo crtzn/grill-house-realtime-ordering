@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import supabase from "@/lib/supabaseClient";
-import { MenuItemType, PackageType } from "@/app/types/index";
+import { MenuItemType, PackageType, Category } from "@/app/types/index";
 
 // Updated to match package_items table structure
 interface SelectedPackageState {
@@ -44,13 +44,14 @@ export default function AddMenuItemForm({
   onSubmit: () => void;
 }) {
   const { toast } = useToast();
+  const [categories, setCategories] = useState<Category[]>([]);
   const [open, setOpen] = useState(false);
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newItem, setNewItem] = useState<Omit<MenuItemType, "id">>({
     name: "",
     description: "",
-    category: "main",
+    category_id: "",
     image_url: null,
     is_available: true,
   });
@@ -63,43 +64,78 @@ export default function AddMenuItemForm({
   const router = useRouter();
 
   useEffect(() => {
-    const fetchPackages = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("packages")
-          .select("*")
-          .eq("is_available", true)
-          .order("name");
-
-        if (error) throw error;
-
-        if (data) {
-          setPackages(data);
-          // Initialize with proper typing
-          const packagesState: { [key: string]: SelectedPackageState } = {};
-          data.forEach((pkg) => {
-            packagesState[pkg.id] = {
-              selected: false,
-              quantity: 1,
-              isUnlimited: false,
-            };
-          });
-          setSelectedPackages(packagesState);
-        }
-      } catch (error) {
-        console.error("Error fetching packages:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load packages. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchPackages();
+    fetchCategories();
+
+    const categoriesSubscription = supabase
+      .channel("category_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "categories",
+        },
+        () => {
+          fetchCategories();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      categoriesSubscription.unsubscribe();
+    };
   }, []);
+
+  const fetchPackages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("packages")
+        .select("*")
+        .eq("is_available", true)
+        .order("name");
+
+      if (error) throw error;
+
+      if (data) {
+        setPackages(data);
+        // Initialize with proper typing
+        const packagesState: { [key: string]: SelectedPackageState } = {};
+        data.forEach((pkg) => {
+          packagesState[pkg.id] = {
+            selected: false,
+            quantity: 1,
+            isUnlimited: false,
+          };
+        });
+        setSelectedPackages(packagesState);
+      }
+    } catch (error) {
+      console.error("Error fetching packages:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load packages. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      if (data) {
+        setCategories(data);
+      }
+    } catch (error) {
+      console.log("Error fetch data:", error);
+    }
+  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -164,7 +200,7 @@ export default function AddMenuItemForm({
       setNewItem({
         name: "",
         description: "",
-        category: "main",
+        category_id: "",
         image_url: null,
         is_available: true,
       });
@@ -186,7 +222,7 @@ export default function AddMenuItemForm({
       toast({
         description: "Menu item added successfully.",
         variant: "default",
-        duration: 3000,
+        duration: 1000,
       });
     } catch (error) {
       console.error("Error adding menu item:", error);
@@ -253,19 +289,20 @@ export default function AddMenuItemForm({
           <div className="space-y-2">
             <Label htmlFor="category">Category</Label>
             <Select
-              value={newItem.category}
+              value={newItem.category_id}
               onValueChange={(value) =>
-                setNewItem({ ...newItem, category: value })
+                setNewItem({ ...newItem, category_id: value })
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent className="bg-white">
-                <SelectItem value="main">Main</SelectItem>
-                <SelectItem value="side">Side</SelectItem>
-                <SelectItem value="drink">Drink</SelectItem>
-                <SelectItem value="addsOn">Adds On</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

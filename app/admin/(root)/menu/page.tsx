@@ -7,9 +7,16 @@ import supabase from "@/lib/supabaseClient";
 import AddMenuItemForm from "@/components/admin/menu/add-menu-item-form";
 import AddPackageForm from "@/components/admin/menu/add-packages";
 import EditMenuItemForm from "@/components/admin/menu/edit-menu-item-form";
-import { MenuItemType, PackageType } from "@/app/types";
+import { MenuItemType, PackageType, Category } from "@/app/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FilePenLine, Pencil, Trash2, Loader2 } from "lucide-react";
+import {
+  FilePenLine,
+  Pencil,
+  Trash2,
+  Loader2,
+  DatabaseZap,
+  DatabaseIcon,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -22,21 +29,84 @@ import { useToast } from "@/hooks/use-toast";
 import Swal from "sweetalert2";
 import { set } from "react-hook-form";
 import PackageModal from "@/components/admin/menu/PackageModal";
-
-type Category = "main" | "side" | "drink" | "all";
+import AddCategoryForm from "@/components/admin/menu/add-categories";
+import EditCategoryForm from "@/components/admin/menu/edit-categories";
+import CategoryManagementModal from "@/components/admin/menu/categoryManagementModal";
 
 export default function MenuPage() {
   const { toast } = useToast();
   const [menuItems, setMenuItems] = useState<MenuItemType[]>([]);
   const [packages, setPackages] = useState<PackageType[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<Category>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<MenuItemType | null>(null);
-  const [newItem, setNewItem] = useState<MenuItemType>();
+  const [editingCategories, setEditingCategories] = useState<Category | null>(
+    null
+  );
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    fetchMenuitems();
+    fetchCategories();
+
+    // Set up realtime subscription for menu items
+    const menuSubscription = supabase
+      .channel("menu_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "menu_items",
+        },
+        () => {
+          fetchMenuitems();
+        }
+      )
+      .subscribe();
+
+    const categoriesSubscription = supabase
+      .channel("category_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "categories",
+        },
+        () => {
+          fetchCategories();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on component unmount
+    return () => {
+      menuSubscription.unsubscribe();
+      categoriesSubscription.unsubscribe();
+    };
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      if (data) {
+        setCategories(data);
+      }
+    } catch (error) {
+      console.log("Error fetch data:", error);
+    }
+  };
 
   const fetchMenuitems = async () => {
     try {
-      const { data, error } = await supabase.from("menu_items").select("*");
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select(`*, categories: category_id(id, name)`);
       if (error) throw error;
       setMenuItems(data || []);
     } catch (error) {
@@ -44,6 +114,7 @@ export default function MenuPage() {
       toast({
         title: "Error",
         description: "Failed to fetch menu data. Please try again.",
+        duration: 2000,
         variant: "destructive",
       });
     } finally {
@@ -66,11 +137,6 @@ export default function MenuPage() {
   //   }
   // };
 
-  useEffect(() => {
-    fetchMenuitems();
-    // fetchPackages();
-  });
-
   async function handleDeletePackages(pkg: string) {
     const result = await Swal.fire({
       title: "Are you sure?",
@@ -85,16 +151,18 @@ export default function MenuPage() {
     if (result.isConfirmed) {
       const { error } = await supabase.from("packages").delete().eq("id", pkg);
       if (error) {
-        Swal.fire(
-          "Error",
-          "Failed to delete menu item. Please try again.",
-          "error"
-        );
+        toast({
+          title: "Error",
+          description: "Failed to delete package. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        });
       } else {
         toast({
           title: "Success",
           description: "Package deleted successfully",
           variant: "default",
+          duration: 2000,
         });
       }
     }
@@ -115,16 +183,18 @@ export default function MenuPage() {
     if (result.isConfirmed) {
       const { error } = await supabase.from("menu_items").delete().eq("id", id);
       if (error) {
-        Swal.fire(
-          "Error",
-          "Failed to delete menu item. Please try again.",
-          "error"
-        );
+        toast({
+          title: "Error",
+          description: "Failed to delete menu item. Please try again.",
+          variant: "destructive",
+          duration: 2000,
+        });
       } else {
         toast({
           title: "Success",
           description: "Menu item deleted successfully",
           variant: "default",
+          duration: 2000,
         });
       }
     }
@@ -146,7 +216,7 @@ export default function MenuPage() {
         .update({
           name: updatedMenuItem.name,
           description: updatedMenuItem.description,
-          category: updatedMenuItem.category,
+          category_id: updatedMenuItem.category_id, // Changed from category to category_id
           image_url: updatedMenuItem.image_url,
           is_available: updatedMenuItem.is_available,
         })
@@ -166,6 +236,7 @@ export default function MenuPage() {
           title: "Success",
           description: "Menu item updated successfully",
           variant: "default",
+          duration: 2000,
         });
       }
     } catch (error) {
@@ -174,9 +245,37 @@ export default function MenuPage() {
         title: "Error",
         description: "Failed to update menu item. Please try again.",
         variant: "destructive",
+        duration: 2000,
       });
     }
   }
+
+  const handleAddCategory = async (newCategory: Omit<Category, "id">) => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .insert([newCategory])
+        .select();
+      if (error) throw error;
+      if (data) {
+        setCategories([...categories, data[0]]);
+        toast({
+          title: "Success",
+          description: "Category added successfully",
+          variant: "default",
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error("Error adding category:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add category. Please try again.",
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
 
   async function handleRemovePackage(id: string) {
     const result = await Swal.fire({
@@ -208,10 +307,111 @@ export default function MenuPage() {
     }
   }
 
+  const handleEditCategory = (category: Category) => {
+    setEditingCategories(category);
+  };
+
+  const handleUpdateCategory = async (updatedCategory: Category) => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .update({
+          name: updatedCategory.name,
+          description: updatedCategory.description,
+        })
+        .eq("id", updatedCategory.id)
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        setCategories(
+          categories.map((cat) =>
+            cat.id === updatedCategory.id ? data[0] : cat
+          )
+        );
+        setEditingCategories(null);
+        toast({
+          title: "Success",
+          description: "Category updated successfully",
+          variant: "default",
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.log("Failed to update category", error);
+      toast({
+        title: "Error",
+        description: "Failed to update category. Please try again.",
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    try {
+      const result = await Swal.fire({
+        title: "Are you sure?",
+        text: "This action cannot be undone!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Yes, delete it!",
+        confirmButtonColor: "#3085d6",
+        cancelButtonText: "Cancel",
+        cancelButtonColor: "#d33",
+        allowOutsideClick: true, // Allows clicking outside to close
+        allowEscapeKey: true, // Allows ESC key to close
+        reverseButtons: true, // Puts "Cancel" on the left
+      });
+
+      if (result.isConfirmed) {
+        // Check if any menu items use this category
+        const { data: menuItems, error: menuError } = await supabase
+          .from("menu_items")
+          .select("id")
+          .eq("category_id", id);
+
+        if (menuItems && menuItems.length > 0) {
+          // If category is in use, show warning
+          await Swal.fire({
+            title: "Cannot Delete",
+            text: "This category is being used by menu items. Please reassign or delete those items first.",
+            icon: "error",
+          });
+          return;
+        }
+
+        const { error } = await supabase
+          .from("categories")
+          .delete()
+          .eq("id", id);
+
+        if (error) throw error;
+
+        setCategories(categories.filter((cat) => cat.id !== id));
+        toast({
+          title: "Success",
+          description: "Category deleted successfully",
+          variant: "default",
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete category. Please try again.",
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
+
   const filteredMenuItems =
     selectedCategory === "all"
       ? menuItems
-      : menuItems.filter((item) => item.category === selectedCategory);
+      : menuItems.filter((item) => item.category_id === selectedCategory);
 
   return (
     <div className="min-h-screen pb-12">
@@ -226,6 +426,12 @@ export default function MenuPage() {
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <AddMenuItemForm onSubmit={fetchMenuitems} />
             <AddPackageForm menuItems={menuItems} onSubmit={fetchMenuitems} />
+            <AddCategoryForm onSubmit={fetchCategories} />
+            <CategoryManagementModal
+              categories={categories}
+              onEdit={handleEditCategory}
+              onDelete={handleDeleteCategory}
+            />
           </div>
         </div>
 
@@ -233,16 +439,22 @@ export default function MenuPage() {
           <div className="w-full flex gap-5 sm:w-auto">
             <Select
               value={selectedCategory}
-              onValueChange={(value: Category) => setSelectedCategory(value)}
+              onValueChange={(value) => setSelectedCategory(value)}
             >
               <SelectTrigger className="w-full sm:w-[200px] bg-white drop-shadow-xl">
                 <SelectValue placeholder="Filter by category" />
               </SelectTrigger>
               <SelectContent className="bg-white">
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="main">Main Dishes</SelectItem>
-                <SelectItem value="side">Side Dishes</SelectItem>
-                <SelectItem value="drink">Drinks</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem
+                    key={category.id}
+                    value={category.id}
+                    className="flex items-center justify-between group"
+                  >
+                    <span>{category.name}</span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select>
@@ -286,7 +498,7 @@ export default function MenuPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredMenuItems.map((item) => (
                 <Card
-                  key={item.id}
+                  key={item.id} // Changed from category_id to id
                   className="overflow-hidden bg-white hover:shadow-lg transition-shadow duration-200"
                 >
                   <CardHeader className="pb-3">
@@ -305,6 +517,7 @@ export default function MenuPage() {
                       <div className="relative aspect-video w-full overflow-hidden rounded-md">
                         <Image
                           src={item.image_url}
+                          priority
                           sizes="100%"
                           alt={item.name}
                           fill
@@ -317,7 +530,7 @@ export default function MenuPage() {
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-wrap gap-2">
                         <span className="text-xs px-2.5 py-1 bg-gray-100 rounded-full text-gray-700">
-                          {item.category}
+                          {item.categories?.name}
                         </span>
                         <span
                           className={`text-xs px-2.5 py-1 rounded-full ${
@@ -371,6 +584,14 @@ export default function MenuPage() {
           isOpen={!!editingItem}
           onClose={() => setEditingItem(null)}
           onSubmit={handleUpdateMenuitem}
+        />
+      )}
+      {editingCategories && (
+        <EditCategoryForm
+          category={editingCategories}
+          isOpen={!!editingCategories}
+          onClose={() => setEditingCategories(null)}
+          onSubmit={handleUpdateCategory}
         />
       )}
     </div>

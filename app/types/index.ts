@@ -3,7 +3,11 @@ export interface MenuItemType {
   id: string;
   name: string;
   description?: string;
-  category: string;
+  category_id: string;
+  categories?: {
+    id: string;
+    name: string;
+  };
   image_url?: string | null;
   is_available: boolean;
 }
@@ -67,7 +71,8 @@ export interface NewCustomerType {
   package_id: string;
   customer_count: string;
 }
-
-export interface CategoryType {
+export interface Category {
+  id: string;
   name: string;
+  description: string;
 }

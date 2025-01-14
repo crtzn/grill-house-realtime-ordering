@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MenuItemType } from "@/app/types";
+import { MenuItemType, Category } from "@/app/types";
 import Swal from "sweetalert2";
 import supabase from "@/lib/supabaseClient";
 import Image from "next/image";
+import { Description } from "@radix-ui/react-toast";
 
 interface EditMenuItemFormProps {
   item: MenuItemType;
@@ -38,11 +39,32 @@ export default function EditMenuItemForm({
   onSubmit,
 }: EditMenuItemFormProps) {
   const [editedItem, setEditedItem] = useState<MenuItemType>(item);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(
     item.image_url || null
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      if (data) {
+        setCategories(data);
+      }
+    } catch (error) {
+      console.log("Error fetch data:", error);
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,6 +99,8 @@ export default function EditMenuItemForm({
     return data.publicUrl;
   };
 
+  //the error is here can`t find the yung category column wala na kasi ako nun, dapat yung ma update
+  //is yung category_id so yeah I will fix this later.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -96,12 +120,20 @@ export default function EditMenuItemForm({
         updatedImageUrl = await uploadImage(imageFile);
       }
 
-      const updatedItem = { ...editedItem, image_url: updatedImageUrl };
+      // const updatedItem = { ...editedItem, image_url: updatedImageUrl };
+
+      const updatedItem = {
+        name: editedItem.name,
+        desciption: editedItem.description,
+        category_id: editedItem.category_id,
+        image_url: updatedImageUrl,
+        is_available: editedItem.is_available,
+      };
 
       const { data, error } = await supabase
         .from("menu_items")
         .update(updatedItem)
-        .eq("id", updatedItem.id)
+        .eq("id", editedItem.id)
         .select()
         .single();
 
@@ -171,11 +203,11 @@ export default function EditMenuItemForm({
           <div className="space-y-2">
             <Label htmlFor="category">Category</Label>
             <Select
-              value={editedItem.category}
+              value={editedItem.category_id}
               onValueChange={(value) =>
                 setEditedItem({
                   ...editedItem,
-                  category: value as MenuItemType["category"],
+                  category_id: value as MenuItemType["category_id"],
                 })
               }
             >
@@ -183,9 +215,11 @@ export default function EditMenuItemForm({
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent className="bg-white">
-                <SelectItem value="main">Main</SelectItem>
-                <SelectItem value="side">Side</SelectItem>
-                <SelectItem value="drink">Drink</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
