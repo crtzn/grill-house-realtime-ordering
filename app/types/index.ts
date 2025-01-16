@@ -12,14 +12,6 @@ export interface MenuItemType {
   is_available: boolean;
 }
 
-export interface PackageItem {
-  id: string;
-  package_id: string;
-  menu_item_id: string;
-  quantity: number | null;
-  is_unlimited: boolean;
-}
-
 export interface OrderItem {
   id: string;
   menu_item_id: string;
@@ -64,6 +56,14 @@ export interface TableType {
 export interface PackageType {
   id: string;
   name: string;
+}
+
+export interface PackageItem {
+  id: string;
+  package_id: string;
+  menu_item_id: string;
+  quantity: number | null;
+  is_unlimited: boolean;
 }
 
 export interface NewCustomerType {

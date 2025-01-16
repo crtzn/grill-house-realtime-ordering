@@ -7,7 +7,7 @@ import supabase from "@/lib/supabaseClient";
 import AddMenuItemForm from "@/components/admin/menu/add-menu-item-form";
 import AddPackageForm from "@/components/admin/menu/add-packages";
 import EditMenuItemForm from "@/components/admin/menu/edit-menu-item-form";
-import { MenuItemType, PackageType, Category } from "@/app/types";
+import { MenuItemType, PackageType, PackageItem, Category } from "@/app/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   FilePenLine,
@@ -29,9 +29,9 @@ import { useToast } from "@/hooks/use-toast";
 import Swal from "sweetalert2";
 import { set } from "react-hook-form";
 import PackageModal from "@/components/admin/menu/PackageModal";
-import AddCategoryForm from "@/components/admin/menu/add-categories";
 import EditCategoryForm from "@/components/admin/menu/edit-categories";
 import CategoryManagementModal from "@/components/admin/menu/categoryManagementModal";
+import PackageManagementModal from "@/components/admin/menu/packageManagmentModal";
 
 export default function MenuPage() {
   const { toast } = useToast();
@@ -43,11 +43,15 @@ export default function MenuPage() {
   const [editingCategories, setEditingCategories] = useState<Category | null>(
     null
   );
+  const [editingPackages, setEditingPackages] = useState<PackageItem | null>(
+    null
+  );
   const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     fetchMenuitems();
     fetchCategories();
+    fetchPackages();
 
     // Set up realtime subscription for menu items
     const menuSubscription = supabase
@@ -122,20 +126,20 @@ export default function MenuPage() {
     }
   };
 
-  // const fetchPackages = async () => {
-  //   try {
-  //     const { data, error } = await supabase.from("packages").select("*");
-  //     if (error) throw error;
-  //     setPackages(data || []);
-  //   } catch (error) {
-  //     console.log("Error fetching packages:", error);
-  //     toast({
-  //       title: "Error",
-  //       description: "Failed to fetch packages. Please try again.",
-  //       variant: "destructive",
-  //     });
-  //   }
-  // };
+  const fetchPackages = async () => {
+    try {
+      const { data, error } = await supabase.from("packages").select("*");
+      if (error) throw error;
+      setPackages(data || []);
+    } catch (error) {
+      console.log("Error fetching packages:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch packages. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   async function handleDeletePackages(pkg: string) {
     const result = await Swal.fire({
@@ -292,16 +296,18 @@ export default function MenuPage() {
     if (result.isConfirmed) {
       const { error } = await supabase.from("packages").delete().eq("id", id);
       if (error) {
-        Swal.fire({
+        toast({
           title: "Error",
-          text: "Failed to delete package. Please try again.",
-          icon: "error",
+          description: "Failed to delete package. Please try again.",
+          variant: "destructive",
+          duration: 2000,
         });
       } else {
-        Swal.fire({
+        toast({
           title: "Success",
-          text: "Package has been deleted.",
-          icon: "success",
+          description: "Package deleted successfully",
+          variant: "default",
+          duration: 2000,
         });
       }
     }
@@ -351,52 +357,34 @@ export default function MenuPage() {
 
   const handleDeleteCategory = async (id: string) => {
     try {
-      const result = await Swal.fire({
-        title: "Are you sure?",
-        text: "This action cannot be undone!",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonText: "Yes, delete it!",
-        confirmButtonColor: "#3085d6",
-        cancelButtonText: "Cancel",
-        cancelButtonColor: "#d33",
-        allowOutsideClick: true, // Allows clicking outside to close
-        allowEscapeKey: true, // Allows ESC key to close
-        reverseButtons: true, // Puts "Cancel" on the left
-      });
+      // Check if any menu items use this category
+      const { data: menuItems, error: menuError } = await supabase
+        .from("menu_items")
+        .select("id")
+        .eq("category_id", id);
 
-      if (result.isConfirmed) {
-        // Check if any menu items use this category
-        const { data: menuItems, error: menuError } = await supabase
-          .from("menu_items")
-          .select("id")
-          .eq("category_id", id);
-
-        if (menuItems && menuItems.length > 0) {
-          // If category is in use, show warning
-          await Swal.fire({
-            title: "Cannot Delete",
-            text: "This category is being used by menu items. Please reassign or delete those items first.",
-            icon: "error",
-          });
-          return;
-        }
-
-        const { error } = await supabase
-          .from("categories")
-          .delete()
-          .eq("id", id);
-
-        if (error) throw error;
-
-        setCategories(categories.filter((cat) => cat.id !== id));
+      if (menuItems && menuItems.length > 0) {
         toast({
-          title: "Success",
-          description: "Category deleted successfully",
-          variant: "default",
-          duration: 2000,
+          title: "Cannot Delete Category",
+          description:
+            "This category is being used by menu items. Please reassign or delete those items first.",
+          variant: "destructive",
+          duration: 3000,
         });
+        return;
       }
+
+      const { error } = await supabase.from("categories").delete().eq("id", id);
+
+      if (error) throw error;
+
+      setCategories(categories.filter((cat) => cat.id !== id));
+      toast({
+        title: "Success",
+        description: "Category deleted successfully",
+        variant: "default",
+        duration: 2000,
+      });
     } catch (error) {
       console.error("Error deleting category:", error);
       toast({
@@ -425,12 +413,15 @@ export default function MenuPage() {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <AddMenuItemForm onSubmit={fetchMenuitems} />
-            <AddPackageForm menuItems={menuItems} onSubmit={fetchMenuitems} />
-            <AddCategoryForm onSubmit={fetchCategories} />
             <CategoryManagementModal
+              onSubmit={fetchCategories}
               categories={categories}
               onEdit={handleEditCategory}
               onDelete={handleDeleteCategory}
+            />
+            <PackageManagementModal
+              menuItems={menuItems}
+              onSubmit={fetchPackages}
             />
           </div>
         </div>
@@ -453,19 +444,6 @@ export default function MenuPage() {
                     className="flex items-center justify-between group"
                   >
                     <span>{category.name}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select>
-              <SelectTrigger className="w-full sm:w-[200px] bg-white drop-shadow-xl">
-                <SelectValue placeholder="Filter by package" />
-              </SelectTrigger>
-              <SelectContent className="bg-white">
-                <SelectItem value="all">All Packages</SelectItem>
-                {packages.map((pkg) => (
-                  <SelectItem key={pkg.id} value={pkg.id}>
-                    {pkg.name}
                   </SelectItem>
                 ))}
               </SelectContent>

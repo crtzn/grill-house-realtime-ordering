@@ -121,19 +121,19 @@ export default function TableManagement() {
 
       if (error) throw error;
 
-      Swal.fire({
+      toast({
         title: "Success",
-        text: "Table has been deleted successfully.",
-        icon: "success",
+        description: "Table has been deleted successfully.",
+        variant: "default",
       });
 
       fetchTables();
     } catch (error) {
       console.error("Error deleting table:", error);
-      Swal.fire({
+      toast({
         title: "Error",
-        text: "Failed to delete table. Please try again.",
-        icon: "error",
+        description: "Failed to delete table. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -279,10 +279,10 @@ export default function TableManagement() {
       });
     } catch (error) {
       console.error("Error updating table:", error);
-      Swal.fire({
+      toast({
         title: "Error",
-        text: "Failed to update table. Please try again.",
-        icon: "error",
+        description: "Failed to update table. Please try again.",
+        variant: "destructive",
       });
     }
   };
@@ -308,17 +308,17 @@ export default function TableManagement() {
       setCurrentOrder(null);
       fetchTables();
 
-      Swal.fire({
+      toast({
         title: "Success",
-        text: "Package has been upgraded successfully.",
-        icon: "success",
+        description: "Package has been upgraded successfully.",
+        variant: "default",
       });
     } catch (error) {
       console.error("Error upgrading package:", error);
-      Swal.fire({
+      toast({
         title: "Error",
-        text: "Failed to upgrade package. Please try again.",
-        icon: "error",
+        description: "Failed to upgrade package. Please try again.",
+        variant: "destructive",
       });
     }
   };

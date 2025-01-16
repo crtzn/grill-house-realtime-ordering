@@ -362,7 +362,10 @@ export default function AddMenuItemForm({
               ))
             )}
           </div>
-          <Button type="submit" className="w-full">
+          <Button
+            type="submit"
+            className="w-full bg-black hover:bg-gray-800 text-white py-5 px-5 rounded-xl"
+          >
             Add Item
           </Button>
         </form>

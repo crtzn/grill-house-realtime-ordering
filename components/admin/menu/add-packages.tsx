@@ -74,10 +74,10 @@ export default function AddPackageForm({
         setSelectedItems([]);
         onSubmit();
         router.refresh();
-        Swal.fire({
+        toast({
           title: "Success",
-          text: "Package added successfully.",
-          icon: "success",
+          description: "Package added successfully",
+          duration: 2000,
         });
       }
     } catch (error) {
@@ -93,7 +93,7 @@ export default function AddPackageForm({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-black hover:bg-gray-800 text-white py-7 px-5 rounded-xl">
+        <Button className="bg-black hover:bg-gray-800 text-white py-5 px-5 rounded-xl mr-5">
           Add New Package
         </Button>
       </DialogTrigger>
@@ -171,7 +171,12 @@ export default function AddPackageForm({
               </ul>
             </div>
           )}
-          <Button type="submit">Add Package</Button>
+          <Button
+            type="submit"
+            className="w-full bg-black hover:bg-gray-800 text-white py-5 px-5 rounded-xl"
+          >
+            Add Package
+          </Button>
         </form>
       </DialogContent>
     </Dialog>
