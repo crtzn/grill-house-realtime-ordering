@@ -5,7 +5,7 @@ import supabase from "@/lib/supabaseClient";
 import Image from "next/image";
 import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { table } from "console";
+import DigitalReceiptModal from "@/app/customer/[orderId]/DigitalReceipt";
 
 type MenuItem = {
   id: string;
@@ -50,6 +50,9 @@ export default function CustomerOrderingPage({
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+
+  const MAX_ITEMS_PER_MENU_ITEM = 5;
 
   useEffect(() => {
     const fetchMenuItems = async () => {
@@ -130,6 +133,12 @@ export default function CustomerOrderingPage({
     );
 
     if (existingItem) {
+      if (existingItem.quantity >= MAX_ITEMS_PER_MENU_ITEM) {
+        alert(
+          `You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`
+        );
+        return;
+      }
       await updateOrderItemQuantity(existingItem.id, existingItem.quantity + 1);
     } else {
       const { error } = await supabase.from("order_items").insert({
@@ -151,6 +160,9 @@ export default function CustomerOrderingPage({
   ) => {
     if (newQuantity < 1) {
       await removeOrderItem(orderItemId);
+    } else if (newQuantity > MAX_ITEMS_PER_MENU_ITEM) {
+      alert(`You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`);
+      return;
     } else {
       const { error } = await supabase
         .from("order_items")
@@ -172,30 +184,30 @@ export default function CustomerOrderingPage({
     if (error) {
       console.error("Error removing order item:", error);
     } else {
-      // Update the state to reflect the deletion
       setOrderItems((prevOrderItems) =>
         prevOrderItems.filter((item) => item.id !== orderItemId)
       );
     }
   };
 
-  const updateOrderItemStatus = async (
-    orderItemId: string,
-    newStatus: OrderItem["status"]
-  ) => {
-    const { error } = await supabase
-      .from("order_items")
-      .update({ status: newStatus })
-      .eq("id", orderItemId);
-
-    if (error) {
-      console.error("Error updating order item status:", error);
-    }
-  };
-
   const checkout = async () => {
-    // Implement checkout logic here
-    console.log("Checkout clicked");
+    try {
+      // Update order status to completed
+      const { error: orderError } = await supabase
+        .from("orders")
+        .update({ status: "completed" })
+        .eq("id", order.id);
+
+      if (orderError) {
+        throw orderError;
+      }
+
+      // Show the receipt modal
+      setIsReceiptModalOpen(true);
+    } catch (error) {
+      console.error("Error during checkout:", error);
+      alert("There was an error processing your checkout. Please try again.");
+    }
   };
 
   const categories = Array.from(
@@ -219,7 +231,7 @@ export default function CustomerOrderingPage({
       >
         <ShoppingCart className="w-6 h-6" />
         {pendingItemsCount > 0 && (
-          <span className="absolute -top-2 -right-2  bg-[#212121]  text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+          <span className="absolute -top-2 -right-2 bg-[#212121] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
             {pendingItemsCount}
           </span>
         )}
@@ -254,7 +266,7 @@ export default function CustomerOrderingPage({
           </div>
         </div>
 
-        {/* Menu Section */}
+        {/* Menu Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMenuItems.map((item) => (
             <div key={item.id} className="border p-4 rounded">
@@ -267,22 +279,43 @@ export default function CustomerOrderingPage({
                 />
               </div>
               <div>
-                <div>
-                  <h3 className="font-bold mt-2">{item.name}</h3>
-                  <p className="text-sm text-gray-600">{item.description}</p>
-                </div>
+                <h3 className="font-bold mt-2">{item.name}</h3>
+                <p className="text-sm text-gray-600">{item.description}</p>
               </div>
-
               <button
                 onClick={() => addToOrder(item)}
                 className={`mt-2 px-4 py-2 rounded w-full ${
-                  item.is_available
-                    ? "bg-green-500 text-white hover:bg-green-600"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  !item.is_available
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : orderItems.some(
+                        (oi) =>
+                          oi.menu_item_id === item.id &&
+                          oi.status === "pending" &&
+                          oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                      )
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-green-500 text-white hover:bg-green-600"
                 }`}
-                disabled={!item.is_available}
+                disabled={
+                  !item.is_available ||
+                  orderItems.some(
+                    (oi) =>
+                      oi.menu_item_id === item.id &&
+                      oi.status === "pending" &&
+                      oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                  )
+                }
               >
-                {item.is_available ? "Add to Order" : "Unavailable"}
+                {!item.is_available
+                  ? "Unavailable"
+                  : orderItems.some(
+                      (oi) =>
+                        oi.menu_item_id === item.id &&
+                        oi.status === "pending" &&
+                        oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                    )
+                  ? "Max Limit Reached"
+                  : "Add to Order"}
               </button>
             </div>
           ))}
@@ -295,7 +328,6 @@ export default function CustomerOrderingPage({
           showCart ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        {/* Mobile Close Button */}
         <button
           onClick={() => setShowCart(false)}
           className="md:hidden absolute top-4 right-4 text-gray-600"
@@ -364,6 +396,18 @@ export default function CustomerOrderingPage({
           Checkout
         </button>
       </div>
+
+      {/* Digital Receipt Modal */}
+      <DigitalReceiptModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        tableNumber={order.tables.table_number}
+        packageName={order.packages.name}
+        customerCount={order.customer_count}
+        totalPrice={order.total_price}
+        orderItems={orderItems}
+        menuItems={menuItems}
+      />
     </div>
   );
 }
