@@ -82,10 +82,10 @@ export default function AddPackageForm({
       }
     } catch (error) {
       console.error("Error adding package:", error);
-      Swal.fire({
+      toast({
         title: "Error",
-        text: "An error occurred while adding the package.",
-        icon: "error",
+        description: "An error occurred while adding the package",
+        duration: 2000,
       });
     }
   };

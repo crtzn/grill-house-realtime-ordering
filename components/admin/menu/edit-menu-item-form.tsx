@@ -24,6 +24,7 @@ import Swal from "sweetalert2";
 import supabase from "@/lib/supabaseClient";
 import Image from "next/image";
 import { Description } from "@radix-ui/react-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface EditMenuItemFormProps {
   item: MenuItemType;
@@ -38,6 +39,7 @@ export default function EditMenuItemForm({
   onClose,
   onSubmit,
 }: EditMenuItemFormProps) {
+  const { toast } = useToast();
   const [editedItem, setEditedItem] = useState<MenuItemType>(item);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -142,28 +144,18 @@ export default function EditMenuItemForm({
       onSubmit(data as MenuItemType);
       onClose();
 
-      await Swal.fire({
-        icon: "success",
-        title: "Success!",
-        text: "Menu item updated successfully",
-        showConfirmButton: false,
-        timer: 1500,
-        customClass: {
-          popup: "animated fadeInDown",
-        },
+      await toast({
+        title: "Success",
+        description: "Menu item updated successfully",
+        duration: 2000,
       });
     } catch (error) {
       console.error("Error updating menu item:", error);
 
-      await Swal.fire({
-        icon: "error",
-        title: "Oops...",
-        text: "Failed to update menu item. Please try again.",
-        confirmButtonText: "OK",
-        customClass: {
-          confirmButton:
-            "bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded",
-        },
+      await toast({
+        title: "Error",
+        description: "An error occurred while updating the menu item",
+        duration: 2000,
       });
     }
   };

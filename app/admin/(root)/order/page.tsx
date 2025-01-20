@@ -138,13 +138,6 @@ export default function OrderManagement() {
           .select("id")
           .eq("order_id", orderId)
           .neq("status", "served");
-
-        if (remainingItems && remainingItems.length === 0) {
-          await supabase
-            .from("orders")
-            .update({ status: "completed" })
-            .eq("id", orderId);
-        }
       }
     }
   }

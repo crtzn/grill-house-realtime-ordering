@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import supabase from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
-import Swal from "sweetalert2";
-import { Trash, Edit } from "lucide-react";
+import { Trash, Edit, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Select,
   SelectContent,
@@ -47,6 +47,13 @@ interface Package {
   price: number;
 }
 
+interface QRCode {
+  id: string;
+  code: string;
+  order_id: string;
+  expired_at: string | null;
+}
+
 export default function TableManagement() {
   const { toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
@@ -54,6 +61,7 @@ export default function TableManagement() {
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [currentQRCode, setCurrentQRCode] = useState<QRCode | null>(null);
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
@@ -112,6 +120,21 @@ export default function TableManagement() {
     }
   };
 
+  const fetchQRCode = async (orderId: string) => {
+    const { data, error } = await supabase
+      .from("qr_codes")
+      .select("*")
+      .eq("order_id", orderId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching QR code:", error);
+      setCurrentQRCode(null);
+    } else if (data) {
+      setCurrentQRCode(data);
+    }
+  };
+
   const handleDeleteTable = async (tableId: string) => {
     try {
       const { error } = await supabase
@@ -151,26 +174,27 @@ export default function TableManagement() {
 
     if (error) {
       console.error("Error adding table:", error);
-      Swal.fire({
-        icon: "error",
+      toast({
         title: "Error",
-        text: "An error occurred while adding the table.",
+        description: "Failed to add table. Please try again.",
+        variant: "destructive",
       });
     } else {
       setNewTable({ table_number: "", capacity: "" });
       setIsAddingTable(false);
       fetchTables();
-      Swal.fire({
+      toast({
         title: "Success",
-        text: "Table added successfully.",
-        icon: "success",
+        description: "Table has been added successfully.",
+        variant: "default",
       });
     }
   };
 
   const handleTableClick = async (table: Table) => {
     setSelectedTable(table);
-    console.log("Fetching order for table:", table.id);
+    setCurrentQRCode(null);
+
     if (table.status === "occupied") {
       const { data, error } = await supabase
         .from("orders")
@@ -188,6 +212,7 @@ export default function TableManagement() {
         });
       } else if (data) {
         setCurrentOrder(data);
+        fetchQRCode(data.id);
       }
     } else {
       setCurrentOrder(null);
@@ -225,10 +250,10 @@ export default function TableManagement() {
 
       if (qrDeleteError) {
         console.error("Error deleting QR code:", qrDeleteError);
-        Swal.fire({
+        toast({
           title: "Error",
-          text: "Failed to delete QR code. Please try again.",
-          icon: "error",
+          description: "Failed to delete QR code. Please try again.",
+          variant: "default",
         });
       }
 
@@ -236,17 +261,17 @@ export default function TableManagement() {
       setCurrentOrder(null);
       fetchTables();
 
-      Swal.fire({
+      toast({
         title: "Success",
-        text: "Table has been terminated and QR code deleted.",
-        icon: "success",
+        description: "Table has been terminated successfully.",
+        variant: "default",
       });
     } catch (error) {
       console.error("Error terminating table:", error);
-      Swal.fire({
+      toast({
         title: "Error",
-        text: "Failed to terminate table. Please try again.",
-        icon: "error",
+        description: "Failed to terminate table. Please try again",
+        variant: "default",
       });
     }
   };
@@ -272,10 +297,10 @@ export default function TableManagement() {
       setEditingTable(null);
       fetchTables();
 
-      Swal.fire({
+      toast({
         title: "Success",
-        text: "Table has been updated successfully.",
-        icon: "success",
+        description: "Table has been updated successfully.",
+        variant: "default",
       });
     } catch (error) {
       console.error("Error updating table:", error);
@@ -415,6 +440,12 @@ export default function TableManagement() {
             <CardContent>
               <p>Capacity: {table.capacity}</p>
               <p>Status: {table.status}</p>
+              {table.status === "occupied" && (
+                <div className="flex items-center mt-2">
+                  <QrCode className="w-4 h-4 mr-2" />
+                  <span className="text-sm text-gray-600">Has QR Code</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -422,7 +453,10 @@ export default function TableManagement() {
       {selectedTable && currentOrder && (
         <Dialog
           open={!!selectedTable}
-          onOpenChange={() => setSelectedTable(null)}
+          onOpenChange={() => {
+            setSelectedTable(null);
+            setCurrentQRCode(null);
+          }}
         >
           <DialogContent className="bg-white">
             <DialogHeader>
@@ -430,31 +464,62 @@ export default function TableManagement() {
                 Table {selectedTable.table_number} Details
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-2">
-              <p>Status: {selectedTable.status}</p>
-              <p>Capacity: {selectedTable.capacity}</p>
-              <p>Customers: {currentOrder.customer_count}</p>
-              <p>Order Status: {currentOrder.status}</p>
-              <p>Current Package: {currentOrder.package_name}</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p>
+                    <strong>Status:</strong> {selectedTable.status}
+                  </p>
+                  <p>
+                    <strong>Capacity:</strong> {selectedTable.capacity}
+                  </p>
+                  <p>
+                    <strong>Customers:</strong> {currentOrder.customer_count}
+                  </p>
+                  <p>
+                    <strong>Order Status:</strong> {currentOrder.status}
+                  </p>
+                  <p>
+                    <strong>Current Package:</strong>{" "}
+                    {currentOrder.package_name}
+                  </p>
+                </div>
+                {currentQRCode && (
+                  <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow-sm">
+                    <QRCodeSVG
+                      value={currentQRCode.code}
+                      size={150}
+                      level="H"
+                      includeMargin
+                      className="mb-2"
+                    />
+                    <p className="text-sm text-gray-500 text-center mt-2">
+                      Scan to access menu
+                    </p>
+                  </div>
+                )}
+              </div>
 
-              <Button
-                onClick={handleTerminateTable}
-                className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
-              >
-                End Session
-              </Button>
-              <Select onValueChange={handleUpgradePackage}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Upgrade Package" />
-                </SelectTrigger>
-                <SelectContent>
-                  {packages.map((pkg) => (
-                    <SelectItem key={pkg.id} value={pkg.id}>
-                      {pkg.name} - ₱{pkg.price.toFixed(2)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-4 mt-4">
+                <Button
+                  onClick={handleTerminateTable}
+                  className="bg-red-600 text-white hover:bg-red-700 hover:text-white w-full"
+                >
+                  End Session
+                </Button>
+                <Select onValueChange={handleUpgradePackage}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Upgrade Package" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {packages.map((pkg) => (
+                      <SelectItem key={pkg.id} value={pkg.id}>
+                        {pkg.name} - ₱{pkg.price.toFixed(2)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
