@@ -84,7 +84,7 @@ const DigitalReceiptModal = ({
             <p>Number of Customers: {customerCount}</p>
           </div>
 
-          <div className="my-4">
+          {/* <div className="my-4">
             <p className="font-bold">ORDER DETAILS:</p>
             <div className="mt-2">
               {orderItems.map((item, index) => (
@@ -95,7 +95,7 @@ const DigitalReceiptModal = ({
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
 
           <div className="border-t border-black pt-2 mt-4">
             <div className="flex justify-between font-bold">

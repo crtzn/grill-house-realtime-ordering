@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DigitalReceiptModal from "@/app/customer/[orderId]/DigitalReceipt";
+import { Category } from "@/app/types";
 
 type MenuItem = {
   id: string;
@@ -48,6 +49,7 @@ export default function CustomerOrderingPage({
   const [order, setOrder] = useState<Order>(initialOrder);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -73,6 +75,7 @@ export default function CustomerOrderingPage({
 
     fetchMenuItems();
     fetchOrderItems();
+    fetchCategories();
 
     const orderItemsSubscription = supabase
       .channel("order-items")
@@ -108,6 +111,21 @@ export default function CustomerOrderingPage({
       supabase.removeChannel(menuItemsSubscription);
     };
   }, [order.id]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      if (data) {
+        setCategories(data);
+      }
+    } catch (error) {
+      console.log("Error fetch data:", error);
+    }
+  };
 
   const fetchOrderItems = async () => {
     const { data, error } = await supabase
@@ -192,27 +210,49 @@ export default function CustomerOrderingPage({
 
   const checkout = async () => {
     try {
-      // Update order status to completed
+      //updating the orders table, status to completed
       const { error: orderError } = await supabase
         .from("orders")
-        .update({ status: "completed" })
+        .update({
+          status: "completed",
+          terminated_at: new Date().toISOString(), // Add termination timestamp
+        })
         .eq("id", order.id);
 
       if (orderError) {
         throw orderError;
       }
 
-      // Show the receipt modal
+      //updateing the tables status to available
+      const { error: tableError } = await supabase
+        .from("tables")
+        .update({ status: "available" })
+        .eq("id", order.table_id);
+
+      if (tableError) {
+        throw tableError;
+      }
+
+      // Update QR code to expired
+      const { error: qrError } = await supabase
+        .from("qr_codes")
+        .update({
+          expired_at: new Date().toISOString(),
+          payment_status: "paid",
+        })
+        .eq("order_id", order.id);
+
+      if (qrError) {
+        throw qrError;
+      }
+
+      // If all updates are successful, show the receipt modal
       setIsReceiptModalOpen(true);
     } catch (error) {
       console.error("Error during checkout:", error);
       alert("There was an error processing your checkout. Please try again.");
     }
   };
-
-  const categories = Array.from(
-    new Set(menuItems.map((item) => item.category))
-  );
 
   const filteredMenuItems = selectedCategory
     ? menuItems.filter((item) => item.category === selectedCategory)
@@ -251,17 +291,21 @@ export default function CustomerOrderingPage({
         <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2">
           <div className="inline-flex">
             {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`mr-2 px-4 py-2 rounded whitespace-nowrap ${
-                  selectedCategory === category
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200"
-                }`}
+              <Button
+                key={category.id}
+                onClick={() =>
+                  setSelectedCategory(
+                    selectedCategory === category.id ? null : category.id
+                  )
+                }
+                className={`${
+                  selectedCategory === category.id
+                    ? "bg-[#383838] text-white"
+                    : "bg-[#242424] text-white"
+                } mr-2 px-7 py-5 hover:bg-[#383838]  hover:text-white`}
               >
-                {category}
-              </button>
+                {category.name}
+              </Button>
             ))}
           </div>
         </div>
