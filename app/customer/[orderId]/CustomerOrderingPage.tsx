@@ -215,6 +215,7 @@ export default function CustomerOrderingPage({
         .from("orders")
         .update({
           status: "completed",
+          payment_status: "paid",
           terminated_at: new Date().toISOString(), // Add termination timestamp
         })
         .eq("id", order.id);
@@ -238,7 +239,6 @@ export default function CustomerOrderingPage({
         .from("qr_codes")
         .update({
           expired_at: new Date().toISOString(),
-          payment_status: "paid",
         })
         .eq("order_id", order.id);
 
