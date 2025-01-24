@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import type React from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -38,6 +39,7 @@ interface Order {
   customer_count: number;
   status: "pending" | "active" | "completed" | "cancelled";
   total_price: number;
+  payment_status: string;
 }
 
 interface Package {
@@ -135,6 +137,45 @@ export default function TableManagement() {
     }
   };
 
+  const calculateTotalPrice = (customerCount: number, packagePrice: number) => {
+    return customerCount * packagePrice;
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedTable || !currentOrder) return;
+
+    try {
+      // Delete QR code
+      await supabase.from("qr_codes").delete().eq("order_id", currentOrder.id);
+
+      // Delete order
+      await supabase.from("orders").delete().eq("id", currentOrder.id);
+
+      // Update table status
+      await supabase
+        .from("tables")
+        .update({ status: "available" })
+        .eq("id", selectedTable.id);
+
+      setSelectedTable(null);
+      setCurrentOrder(null);
+      fetchTables();
+
+      toast({
+        title: "Success",
+        description: "Order cancelled successfully",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel order",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteTable = async (tableId: string) => {
     try {
       const { error } = await supabase
@@ -166,8 +207,8 @@ export default function TableManagement() {
     const { error } = await supabase
       .from("tables")
       .insert({
-        table_number: parseInt(newTable.table_number),
-        capacity: parseInt(newTable.capacity),
+        table_number: Number.parseInt(newTable.table_number),
+        capacity: Number.parseInt(newTable.capacity),
         status: "available",
       })
       .select();
@@ -198,7 +239,7 @@ export default function TableManagement() {
     if (table.status === "occupied") {
       const { data, error } = await supabase
         .from("orders")
-        .select("*")
+        .select("*, packages(price)")
         .eq("table_id", table.id)
         .eq("status", "active")
         .single();
@@ -211,7 +252,14 @@ export default function TableManagement() {
           variant: "destructive",
         });
       } else if (data) {
-        setCurrentOrder(data);
+        const orderWithPrice = {
+          ...data,
+          total_price: calculateTotalPrice(
+            data.customer_count,
+            data.packages.price
+          ),
+        };
+        setCurrentOrder(orderWithPrice);
         fetchQRCode(data.id);
       }
     } else {
@@ -223,12 +271,13 @@ export default function TableManagement() {
     if (!selectedTable || !currentOrder) return;
 
     try {
-      // Complete the order
+      // Update order status and payment status
       const { error: orderError } = await supabase
         .from("orders")
         .update({
           status: "completed",
           terminated_at: new Date().toISOString(),
+          payment_status: "paid",
         })
         .eq("id", currentOrder.id);
 
@@ -248,14 +297,7 @@ export default function TableManagement() {
         .delete()
         .eq("order_id", currentOrder.id);
 
-      if (qrDeleteError) {
-        console.error("Error deleting QR code:", qrDeleteError);
-        toast({
-          title: "Error",
-          description: "Failed to delete QR code. Please try again.",
-          variant: "default",
-        });
-      }
+      if (qrDeleteError) throw qrDeleteError;
 
       setSelectedTable(null);
       setCurrentOrder(null);
@@ -271,7 +313,7 @@ export default function TableManagement() {
       toast({
         title: "Error",
         description: "Failed to terminate table. Please try again",
-        variant: "default",
+        variant: "destructive",
       });
     }
   };
@@ -319,19 +361,26 @@ export default function TableManagement() {
       const selectedPackage = packages.find((pkg) => pkg.id === packageId);
       if (!selectedPackage) throw new Error("Package not found");
 
+      const newTotalPrice = calculateTotalPrice(
+        currentOrder.customer_count,
+        selectedPackage.price
+      );
+
       const { error: orderError } = await supabase
         .from("orders")
         .update({
           package_id: packageId,
-          total_price: selectedPackage.price * currentOrder.customer_count,
         })
         .eq("id", currentOrder.id);
 
       if (orderError) throw orderError;
 
-      setSelectedTable(null);
-      setCurrentOrder(null);
-      fetchTables();
+      setCurrentOrder({
+        ...currentOrder,
+        package_id: packageId,
+        package_name: selectedPackage.name,
+        total_price: newTotalPrice,
+      });
 
       toast({
         title: "Success",
@@ -483,6 +532,14 @@ export default function TableManagement() {
                     <strong>Current Package:</strong>{" "}
                     {currentOrder.package_name}
                   </p>
+                  <p>
+                    <strong>Total Price:</strong> ₱
+                    {currentOrder.total_price.toFixed(2)}
+                  </p>
+                  <p>
+                    <strong>Payment Status:</strong>{" "}
+                    {currentOrder.payment_status}
+                  </p>
                 </div>
                 {currentQRCode && (
                   <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg shadow-sm">
@@ -503,9 +560,15 @@ export default function TableManagement() {
               <div className="flex gap-4 mt-4">
                 <Button
                   onClick={handleTerminateTable}
-                  className="bg-red-600 text-white hover:bg-red-700 hover:text-white w-full"
+                  className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
                 >
                   End Session
+                </Button>
+                <Button
+                  onClick={handleCancelOrder}
+                  className="bg-gray-600 text-white hover:bg-gray-700 hover:text-white"
+                >
+                  Cancel Order
                 </Button>
                 <Select onValueChange={handleUpgradePackage}>
                   <SelectTrigger className="w-full">
@@ -548,7 +611,7 @@ export default function TableManagement() {
                 onChange={(e) =>
                   setEditingTable((prev) =>
                     prev
-                      ? { ...prev, capacity: parseInt(e.target.value) }
+                      ? { ...prev, capacity: Number.parseInt(e.target.value) }
                       : null
                   )
                 }

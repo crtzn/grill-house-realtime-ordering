@@ -327,37 +327,6 @@ export default function AddMenuItemForm({
                     />
                     <Label htmlFor={`package-${pkg.id}`}>{pkg.name}</Label>
                   </div>
-                  {selectedPackages[pkg.id]?.selected && (
-                    <div className="ml-6 space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={selectedPackages[pkg.id]?.isUnlimited}
-                          onCheckedChange={(checked) => {
-                            updatePackageSelection(pkg.id, {
-                              isUnlimited: checked as boolean,
-                              quantity: checked ? null : 1,
-                            });
-                          }}
-                        />
-                        <Label>Unlimited</Label>
-                      </div>
-                      {!selectedPackages[pkg.id]?.isUnlimited && (
-                        <div>
-                          <Label>Quantity</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={selectedPackages[pkg.id]?.quantity ?? 1}
-                            onChange={(e) => {
-                              updatePackageSelection(pkg.id, {
-                                quantity: parseInt(e.target.value),
-                              });
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))
             )}
