@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import Logo from "@/assets/logo.png";
+import Logo from "@/public/assets/Logo.png";
 
 export default function ExpiredQRPage() {
   return (
