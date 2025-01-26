@@ -12,7 +12,10 @@ type MenuItem = {
   id: string;
   name: string;
   description: string;
-  category: string;
+  categories?: {
+    id: string;
+    name: string;
+  };
   image_url: string;
   is_available: boolean;
 };
@@ -60,7 +63,7 @@ export default function CustomerOrderingPage({
     const fetchMenuItems = async () => {
       const { data, error } = await supabase
         .from("menu_items")
-        .select("*")
+        .select("*, categories(id, name)")
         .in(
           "id",
           order.packages.package_items.map((item) => item.menu_items.id)
@@ -255,7 +258,7 @@ export default function CustomerOrderingPage({
   };
 
   const filteredMenuItems = selectedCategory
-    ? menuItems.filter((item) => item.category === selectedCategory)
+    ? menuItems.filter((item) => item.categories?.id === selectedCategory)
     : menuItems;
 
   const pendingItemsCount = orderItems.filter(
@@ -290,6 +293,16 @@ export default function CustomerOrderingPage({
         {/* Categories Scrollable Container */}
         <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2">
           <div className="inline-flex">
+            <Button
+              onClick={() => setSelectedCategory(null)}
+              className={`${
+                selectedCategory === null
+                  ? "bg-[#383838] text-white"
+                  : "bg-[#242424] text-white"
+              } mr-2 px-7 py-5 hover:bg-[#383838] hover:text-white`}
+            >
+              All
+            </Button>
             {categories.map((category) => (
               <Button
                 key={category.id}
