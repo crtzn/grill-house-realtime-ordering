@@ -7,6 +7,7 @@ import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DigitalReceiptModal from "@/app/customer/[orderId]/DigitalReceipt";
 import { Category } from "@/app/types";
+import Swal from "sweetalert2";
 
 type MenuItem = {
   id: string;
@@ -213,47 +214,94 @@ export default function CustomerOrderingPage({
 
   const checkout = async () => {
     try {
-      //updating the orders table, status to completed
-      const { error: orderError } = await supabase
-        .from("orders")
-        .update({
-          status: "completed",
-          payment_status: "paid",
-          terminated_at: new Date().toISOString(), // Add termination timestamp
-        })
-        .eq("id", order.id);
+      const result = await Swal.fire({
+        title: "Checkout Options",
+        text: "What would you like to do?",
+        icon: "question",
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: "Checkout",
+        denyButtonText: "Order Again",
+        confirmButtonColor: "#3085d6",
+        denyButtonColor: "#28a745",
+        cancelButtonColor: "#d33",
+      });
 
-      if (orderError) {
-        throw orderError;
+      if (result.isDenied) {
+        // Handle "Order Again" option
+        setIsReceiptModalOpen(false); // Close the receipt modal if it's open
+        return; // Exit the function to allow for new orders
       }
 
-      //updateing the tables status to available
-      const { error: tableError } = await supabase
-        .from("tables")
-        .update({ status: "available" })
-        .eq("id", order.table_id);
+      if (result.isConfirmed) {
+        // Show a final confirmation
+        const confirmResult = await Swal.fire({
+          title: "Confirm Checkout",
+          text: "Are you sure you want to proceed with the checkout?",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#3085d6",
+          cancelButtonColor: "#d33",
+          confirmButtonText: "Yes, checkout!",
+        });
 
-      if (tableError) {
-        throw tableError;
+        if (confirmResult.isConfirmed) {
+          // Updating the orders table, status to completed
+          const { error: orderError } = await supabase
+            .from("orders")
+            .update({
+              status: "completed",
+              payment_status: "paid",
+              terminated_at: new Date().toISOString(),
+            })
+            .eq("id", order.id);
+
+          if (orderError) {
+            throw orderError;
+          }
+
+          // Updating the tables status to available
+          const { error: tableError } = await supabase
+            .from("tables")
+            .update({ status: "available" })
+            .eq("id", order.table_id);
+
+          if (tableError) {
+            throw tableError;
+          }
+
+          // Update QR code to expired
+          const { error: qrError } = await supabase
+            .from("qr_codes")
+            .update({
+              expired_at: new Date().toISOString(),
+            })
+            .eq("order_id", order.id);
+
+          if (qrError) {
+            throw qrError;
+          }
+
+          // If all updates are successful, show success message and receipt modal
+          await Swal.fire({
+            title: "Success!",
+            text: "Checkout completed successfully",
+            icon: "success",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+
+          setIsReceiptModalOpen(true);
+        }
       }
-
-      // Update QR code to expired
-      const { error: qrError } = await supabase
-        .from("qr_codes")
-        .update({
-          expired_at: new Date().toISOString(),
-        })
-        .eq("order_id", order.id);
-
-      if (qrError) {
-        throw qrError;
-      }
-
-      // If all updates are successful, show the receipt modal
-      setIsReceiptModalOpen(true);
     } catch (error) {
       console.error("Error during checkout:", error);
-      alert("There was an error processing your checkout. Please try again.");
+      await Swal.fire({
+        title: "Error",
+        text: "There was an error processing your checkout. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#3085d6",
+      });
     }
   };
 
@@ -448,9 +496,9 @@ export default function CustomerOrderingPage({
         ))}
         <button
           onClick={checkout}
-          className="w-full bg-blue-500 text-white px-4 py-2 rounded mt-4"
+          className="w-full bg-red-500 shadow-md hover:shadow-xl transition-all duration-300 text-white px-4 py-2 rounded mt-4"
         >
-          Checkout
+          Done Eating
         </button>
       </div>
 
