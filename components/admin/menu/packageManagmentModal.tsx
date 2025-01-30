@@ -158,8 +158,6 @@ const PackageManagementModal: React.FC<PackageManagementModalProps> = ({
       const { error } = await supabase.from("package_items").insert({
         package_id: editingPackage.id,
         menu_item_id: selectedMenuItem,
-        quantity: 1,
-        is_unlimited: false,
       });
 
       if (error) {

@@ -182,8 +182,6 @@ export default function AddMenuItemForm({
           .map(([packageId, value]) => ({
             package_id: packageId,
             menu_item_id: menuItem.id,
-            quantity: value.isUnlimited ? null : value.quantity,
-            is_unlimited: value.isUnlimited,
           }));
 
         if (packageItemsToInsert.length > 0) {

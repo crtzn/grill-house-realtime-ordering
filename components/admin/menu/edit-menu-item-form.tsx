@@ -106,13 +106,10 @@ export default function EditMenuItemForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    Swal.fire({
-      title: "Updating...",
-      text: "Please wait while we update the menu item",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
+    toast({
+      title: "Updating Menu Item",
+      description: "Please wait...",
+      duration: 2000,
     });
 
     try {
@@ -126,7 +123,7 @@ export default function EditMenuItemForm({
 
       const updatedItem = {
         name: editedItem.name,
-        desciption: editedItem.description,
+        description: editedItem.description,
         category_id: editedItem.category_id,
         image_url: updatedImageUrl,
         is_available: editedItem.is_available,
