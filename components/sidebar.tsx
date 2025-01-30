@@ -6,64 +6,40 @@ import {
   ListOrdered,
   SquareMenu,
   TabletSmartphone,
-  Bell,
 } from "lucide-react";
 import { Nav } from "@/components/nav";
 import Image from "next/image";
 import { useWindowWidth } from "@react-hook/window-size";
-import { set } from "react-hook-form";
+import { getUserRole } from "@/app/utils/getUserRoles"; // Adjust the import path
+import { filterLinks } from "@/app/utils/filterLink"; // Adjust the import path
 
 export default function SideNavbar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const mobileWidth = useWindowWidth();
 
   useEffect(() => {
     setIsMobile(mobileWidth < 768);
-  });
+    const role = getUserRole(); // Fetch user role
+    setUserRole(role);
+  }, [mobileWidth]);
+
+  const filteredLinks = filterLinks(userRole); // Filter links based on role
 
   return (
-    <div className="flex flex-col items-center relative min-w-[80px] border-r px-3  pb-5 pt-10 ">
+    <div className="flex flex-col items-center relative min-w-[80px] border-r px-3 pb-5 pt-10">
       <Image
         src="/assets/Logo.png"
         width={80}
         height={80}
         alt="Logo"
         priority
-        className="size-[24px max-xl:size-14"
+        className="size-[24px] max-xl:size-14"
       />
       <Nav
         isCollapsed={isMobile ? true : isCollapsed}
-        links={[
-          {
-            title: "DASHBOARD",
-            label: "",
-            icon: LayoutDashboard,
-            variant: "default",
-            href: "/admin",
-          },
-          {
-            title: "ORDER",
-            label: "",
-            icon: ListOrdered,
-            variant: "default",
-            href: "/admin/order",
-          },
-          {
-            title: "MENU",
-            label: "",
-            icon: SquareMenu,
-            variant: "default",
-            href: "/admin/menu",
-          },
-          {
-            title: "TABLE",
-            label: "",
-            icon: TabletSmartphone,
-            variant: "default",
-            href: "/admin/device",
-          },
-        ]}
+        links={filteredLinks} // Pass filtered links to Nav
       />
     </div>
   );
