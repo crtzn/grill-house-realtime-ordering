@@ -31,7 +31,7 @@ export function CustomersToday() {
   }, []);
 
   return (
-    <Card>
+    <Card className="shadow-md hover:shadow-xl transition-all duration-300 border-gray-200">
       <CardHeader>
         <CardTitle>Customers Today</CardTitle>
       </CardHeader>
