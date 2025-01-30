@@ -38,7 +38,9 @@ export async function middleware(request: NextRequest) {
 
       if (error) {
         console.error("Error checking QR code:", error);
-        return NextResponse.redirect(new URL("/customer/error", request.url));
+        return NextResponse.redirect(
+          new URL("/customer/expired-qr", request.url)
+        );
       }
 
       if (!qrCode) {
