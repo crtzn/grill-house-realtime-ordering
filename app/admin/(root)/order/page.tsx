@@ -131,20 +131,55 @@ export default function OrderManagement() {
 
     if (error) {
       console.error("Error updating order item status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update order item status.",
+        variant: "destructive",
+      });
     } else {
+      toast({
+        title: "Success",
+        description: `Order item status updated to ${newStatus}.`,
+      });
+
       if (newStatus === "served") {
         const { data: remainingItems } = await supabase
           .from("order_items")
           .select("id")
           .eq("order_id", orderId)
           .neq("status", "served");
+
+        if (remainingItems?.length === 0) {
+          toast({
+            title: "Order Completed",
+            description: "All items have been served.",
+          });
+        }
       }
     }
   }
 
-  const handleOrderChange = (payload: any) => {
+  const handleOrderChange = async (payload: any) => {
     if (payload.eventType === "INSERT") {
-      setOrders((prevOrders) => [payload.new, ...prevOrders]);
+      // Fetch the related table data for the new order
+      const { data: tableData, error: tableError } = await supabase
+        .from("tables")
+        .select("table_number")
+        .eq("id", payload.new.table_id)
+        .single();
+
+      if (tableError) {
+        console.error("Error fetching table data:", tableError);
+        return;
+      }
+
+      const newOrder: Order = {
+        id: payload.new.id,
+        status: payload.new.status,
+        table_number: tableData.table_number,
+      };
+
+      setOrders((prevOrders) => [newOrder, ...prevOrders]);
     } else if (payload.eventType === "UPDATE") {
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
@@ -158,9 +193,30 @@ export default function OrderManagement() {
     }
   };
 
-  const handleOrderItemChange = (payload: any) => {
+  const handleOrderItemChange = async (payload: any) => {
     if (payload.eventType === "INSERT") {
-      setOrderItems((prevItems) => [...prevItems, payload.new]);
+      // Fetch the related menu item data for the new order item
+      const { data: menuItemData, error: menuItemError } = await supabase
+        .from("menu_items")
+        .select("name")
+        .eq("id", payload.new.menu_item_id)
+        .single();
+
+      if (menuItemError) {
+        console.error("Error fetching menu item data:", menuItemError);
+        return;
+      }
+
+      const newOrderItem: OrderItem = {
+        id: payload.new.id,
+        order_id: payload.new.order_id,
+        menu_item_id: payload.new.menu_item_id,
+        quantity: payload.new.quantity,
+        status: payload.new.status,
+        menu_item_name: menuItemData.name,
+      };
+
+      setOrderItems((prevItems) => [...prevItems, newOrderItem]);
     } else if (payload.eventType === "UPDATE") {
       setOrderItems((prevItems) =>
         prevItems.map((item) =>
