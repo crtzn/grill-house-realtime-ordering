@@ -1,12 +1,11 @@
 // utils/filterLinks.ts
-import { Nav } from "@/components/nav"; // Adjust the import path as needed
 import {
   LayoutDashboard,
   ListOrdered,
-  LucideIcon,
   SquareMenu,
   TabletSmartphone,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react"; // Correctly import LucideIcon
 
 interface NavLink {
   title: string;
@@ -17,7 +16,7 @@ interface NavLink {
 }
 
 export const filterLinks = (role: string | null): NavLink[] => {
-  const allLinks = [
+  const allLinks: NavLink[] = [
     {
       title: "DASHBOARD",
       label: "",
