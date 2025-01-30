@@ -276,6 +276,7 @@ export default function CustomerOrderingPage({
             .update({
               expired_at: new Date().toISOString(),
             })
+
             .eq("order_id", order.id);
 
           if (qrError) {
