@@ -10,8 +10,8 @@ import {
 import { Nav } from "@/components/nav";
 import Image from "next/image";
 import { useWindowWidth } from "@react-hook/window-size";
-import { getUserRole } from "@/app/utils/getUserRoles"; // Adjust the import path
-import { filterLinks } from "@/app/utils/filterLink"; // Adjust the import path
+import { getUserRole } from "@/app/utils/getUserRoles";
+import { filterLinks } from "@/app/utils/filterLink";
 
 export default function SideNavbar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -21,26 +21,25 @@ export default function SideNavbar() {
 
   useEffect(() => {
     setIsMobile(mobileWidth < 768);
-    const role = getUserRole(); // Fetch user role
+    const role = getUserRole();
     setUserRole(role);
   }, [mobileWidth]);
 
-  const filteredLinks = filterLinks(userRole); // Filter links based on role
+  const filteredLinks = filterLinks(userRole);
 
   return (
     <div className="flex flex-col items-center relative min-w-[80px] border-r px-3 pb-5 pt-10">
-      <Image
-        src="/assets/Logo.png"
-        width={80}
-        height={80}
-        alt="Logo"
-        priority
-        className="size-[24px] max-xl:size-14"
-      />
-      <Nav
-        isCollapsed={isMobile ? true : isCollapsed}
-        links={filteredLinks} // Pass filtered links to Nav
-      />
+      <div className="mb-4 w-full flex justify-center">
+        <Image
+          src="/assets/Logo.png"
+          width={80}
+          height={80}
+          alt="Logo"
+          priority
+          className="w-16 h-16 md:w-20 md:h-20"
+        />
+      </div>
+      <Nav isCollapsed={isMobile ? true : isCollapsed} links={filteredLinks} />
     </div>
   );
 }
