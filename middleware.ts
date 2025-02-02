@@ -1,7 +1,6 @@
-// middleware.ts
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
 type QRCode = {
   expired_at: string | null;
@@ -14,8 +13,36 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === "/customer/error" ||
     pathname === "/customer/invalid-qr" ||
-    pathname === "/customer/expired-qr"
+    pathname === "/customer/expired-qr" ||
+    pathname === "/admin/login"
   ) {
+    return NextResponse.next();
+  }
+
+  // Check if it's an admin route
+  if (pathname.startsWith("/admin")) {
+    const authenticated =
+      request.cookies.get("authenticated")?.value === "true";
+    const userRole = request.cookies.get("userRole")?.value;
+
+    if (!authenticated) {
+      return NextResponse.redirect(new URL("/admin/login", request.url));
+    }
+
+    // Role-based access control
+    if (userRole === "staff") {
+      if (!["/admin/order", "/admin/menu", "/admin/table"].includes(pathname)) {
+        return NextResponse.redirect(new URL("/admin/menu", request.url));
+      }
+    } else if (userRole === "kitchen") {
+      if (pathname !== "/admin/order") {
+        return NextResponse.redirect(new URL("/admin/order", request.url));
+      }
+    } else if (userRole !== "admin") {
+      // If role is not recognized, redirect to login
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
     return NextResponse.next();
   }
 
@@ -75,7 +102,9 @@ export const config = {
   matcher: [
     // Match UUID pattern in customer routes
     "/customer/:uuid*",
-    // Exclude error pages
-    "/((?!customer/error|customer/invalid-qr|customer/expired-qr).*)",
+    // Match all admin routes
+    "/admin/:path*",
+    // Exclude error pages and login page
+    "/((?!customer/error|customer/invalid-qr|customer/expired-qr|admin/login).*)",
   ],
 };

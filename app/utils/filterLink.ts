@@ -43,7 +43,7 @@ export const filterLinks = (role: string | null): NavLink[] => {
       label: "",
       icon: TabletSmartphone,
       variant: "default",
-      href: "/admin/device",
+      href: "/admin/table",
     },
   ];
 
