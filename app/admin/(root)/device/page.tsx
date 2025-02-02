@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Swal from "sweetalert2";
 
 interface Table {
   id: string;
@@ -177,28 +178,41 @@ export default function TableManagement() {
   };
 
   const handleDeleteTable = async (tableId: string) => {
-    try {
-      const { error } = await supabase
-        .from("tables")
-        .delete()
-        .eq("id", tableId);
+    const result = await Swal.fire({
+      title: "Are you sure you want to delete this table?",
+      text: "This action cannot be undone!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes!",
+      confirmButtonColor: "#3085d6",
+      cancelButtonText: "Cancel",
+      cancelButtonColor: "#d33",
+    });
 
-      if (error) throw error;
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from("tables")
+          .delete()
+          .eq("id", tableId);
 
-      toast({
-        title: "Success",
-        description: "Table has been deleted successfully.",
-        variant: "default",
-      });
+        if (error) throw error;
 
-      fetchTables();
-    } catch (error) {
-      console.error("Error deleting table:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete table. Please try again.",
-        variant: "destructive",
-      });
+        toast({
+          title: "Success",
+          description: "Table has been deleted successfully.",
+          variant: "default",
+        });
+
+        fetchTables();
+      } catch (error) {
+        console.error("Error deleting table:", error);
+        toast({
+          title: "Error",
+          description: "Failed to delete table. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -270,51 +284,63 @@ export default function TableManagement() {
   const handleTerminateTable = async () => {
     if (!selectedTable || !currentOrder) return;
 
-    try {
-      // Update order status and payment status
-      const { error: orderError } = await supabase
-        .from("orders")
-        .update({
-          status: "completed",
-          terminated_at: new Date().toISOString(),
-          payment_status: "paid",
-        })
-        .eq("id", currentOrder.id);
+    const result = await Swal.fire({
+      title: "Are you sure you want to end this table?",
+      text: "This action cannot be undone!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes!",
+      confirmButtonColor: "#3085d6",
+      cancelButtonText: "Cancel",
+      cancelButtonColor: "#d33",
+    });
+    if (result.isConfirmed) {
+      try {
+        // Update order status and payment status
+        const { error: orderError } = await supabase
+          .from("orders")
+          .update({
+            status: "completed",
+            terminated_at: new Date().toISOString(),
+            payment_status: "paid",
+          })
+          .eq("id", currentOrder.id);
 
-      if (orderError) throw orderError;
+        if (orderError) throw orderError;
 
-      // Update table status
-      const { error: tableError } = await supabase
-        .from("tables")
-        .update({ status: "available" })
-        .eq("id", selectedTable.id);
+        // Update table status
+        const { error: tableError } = await supabase
+          .from("tables")
+          .update({ status: "available" })
+          .eq("id", selectedTable.id);
 
-      if (tableError) throw tableError;
+        if (tableError) throw tableError;
 
-      // Delete QR code
-      const { error: qrDeleteError } = await supabase
-        .from("qr_codes")
-        .delete()
-        .eq("order_id", currentOrder.id);
+        // Delete QR code
+        const { error: qrDeleteError } = await supabase
+          .from("qr_codes")
+          .delete()
+          .eq("order_id", currentOrder.id);
 
-      if (qrDeleteError) throw qrDeleteError;
+        if (qrDeleteError) throw qrDeleteError;
 
-      setSelectedTable(null);
-      setCurrentOrder(null);
-      fetchTables();
+        setSelectedTable(null);
+        setCurrentOrder(null);
+        fetchTables();
 
-      toast({
-        title: "Success",
-        description: "Table has been terminated successfully.",
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Error terminating table:", error);
-      toast({
-        title: "Error",
-        description: "Failed to terminate table. Please try again",
-        variant: "destructive",
-      });
+        toast({
+          title: "Success",
+          description: "Table has been terminated successfully.",
+          variant: "default",
+        });
+      } catch (error) {
+        console.error("Error terminating table:", error);
+        toast({
+          title: "Error",
+          description: "Failed to terminate table. Please try again",
+          variant: "destructive",
+        });
+      }
     }
   };
 

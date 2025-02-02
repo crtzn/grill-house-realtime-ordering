@@ -32,6 +32,7 @@ import PackageModal from "@/components/admin/menu/PackageModal";
 import EditCategoryForm from "@/components/admin/menu/edit-categories";
 import CategoryManagementModal from "@/components/admin/menu/categoryManagementModal";
 import PackageManagementModal from "@/components/admin/menu/packageManagmentModal";
+import AddOnsManagementModal from "@/components/admin/menu/add-ons-management-modal";
 
 export default function MenuPage() {
   const { toast } = useToast();
@@ -413,6 +414,7 @@ export default function MenuPage() {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <AddMenuItemForm onSubmit={fetchMenuitems} />
+            <AddOnsManagementModal />
             <CategoryManagementModal
               onSubmit={fetchCategories}
               categories={categories}
