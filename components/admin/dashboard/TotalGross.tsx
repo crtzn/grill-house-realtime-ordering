@@ -15,13 +15,27 @@ interface IncomeData {
   todayIncome: number;
 }
 
+interface Package {
+  price: number;
+}
+
+interface AddOn {
+  price: number;
+}
+
+interface OrderAddon {
+  quantity: number;
+  add_ons: AddOn;
+}
+
 interface OrderWithPackage {
   id: string;
   customer_count: number;
   payment_status: string;
   created_at: string;
   terminated_at: string | null;
-  packages: any;
+  packages: Package;
+  order_addons: OrderAddon[];
 }
 
 export function TotalGross() {
@@ -68,7 +82,7 @@ export function TotalGross() {
         startDate = new Date(today.getFullYear(), 0, 1);
         break;
       case "all":
-        startDate = new Date(2000, 0, 1); // Far past date to get all records
+        startDate = new Date(2000, 0, 1);
         break;
     }
 
@@ -83,6 +97,12 @@ export function TotalGross() {
         terminated_at,
         packages (
           price
+        ),
+        order_addons (
+          quantity,
+          add_ons (
+            price
+          )
         )
       `
       )
@@ -98,9 +118,20 @@ export function TotalGross() {
     let monthlyIncome: { [key: string]: number } = {};
     let todayIncome = 0;
 
-    (ordersData as OrderWithPackage[]).forEach((order) => {
+    (ordersData as unknown as OrderWithPackage[]).forEach((order) => {
       const orderDate = new Date(order.terminated_at || order.created_at);
-      const orderTotal = order.customer_count * (order.packages.price || 0);
+
+      // Calculate package total
+      const packageTotal = order.customer_count * (order.packages?.price || 0);
+
+      // Calculate addons total
+      const addonsTotal =
+        order.order_addons?.reduce((sum, addon) => {
+          return sum + addon.quantity * (addon.add_ons?.price || 0);
+        }, 0) || 0;
+
+      // Combined total for this order
+      const orderTotal = packageTotal + addonsTotal;
 
       // Calculate total gross
       totalGross += orderTotal;
@@ -160,7 +191,7 @@ export function TotalGross() {
     <Card className="w-full m-h-screen shadow-md hover:shadow-xl transition-all duration-300 border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-2xl font-bold">Income Overview</CardTitle>
-        {/* <Select
+        <Select
           value={timeRange}
           onValueChange={(value) => setTimeRange(value)}
         >
@@ -172,7 +203,7 @@ export function TotalGross() {
             <SelectItem value="year">This Year</SelectItem>
             <SelectItem value="all">All Time</SelectItem>
           </SelectContent>
-        </Select> */}
+        </Select>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
