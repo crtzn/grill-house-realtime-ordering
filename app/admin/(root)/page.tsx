@@ -1,12 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomersToday } from "@/components/admin/dashboard/CustomerToday";
 import { AvailableTables } from "@/components/admin/dashboard/Available";
 import CustomerChart from "@/components/admin/dashboard/CustomerChart";
 import { TotalGross } from "@/components/admin/dashboard/TotalGross";
 import MostOrderedItems from "@/components/admin/dashboard/MostOrderedMenu";
+import { ActivityLog } from "@/components/admin/dashboard/activity-log";
 
 export default function DashboardPage() {
   return (
