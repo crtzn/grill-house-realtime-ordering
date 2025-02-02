@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import DigitalReceiptModal from "@/app/customer/[orderId]/DigitalReceipt";
 import { Category } from "@/app/types";
 import Swal from "sweetalert2";
+import { useToast } from "@/hooks/use-toast";
 
 type MenuItem = {
   id: string;
@@ -21,11 +22,18 @@ type MenuItem = {
   is_available: boolean;
 };
 
+type AddOns = {
+  id: string;
+  name: string;
+  price: number;
+  is_available: boolean;
+};
+
 type OrderItem = {
   id: string;
   menu_item_id: string;
   quantity: number;
-  status: "pending" | "preparing" | "served" | "cancelled";
+  status: "confirming" | "pending" | "preparing" | "served" | "cancelled";
 };
 
 type Order = {
@@ -50,6 +58,7 @@ export default function CustomerOrderingPage({
 }: {
   initialOrder: Order;
 }) {
+  const { toast } = useToast();
   const [order, setOrder] = useState<Order>(initialOrder);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -57,6 +66,8 @@ export default function CustomerOrderingPage({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [addOns, setAddOns] = useState<AddOns[]>([]);
+  const [showingAddOns, setShowingAddOns] = useState(false);
 
   const MAX_ITEMS_PER_MENU_ITEM = 5;
 
@@ -80,6 +91,7 @@ export default function CustomerOrderingPage({
     fetchMenuItems();
     fetchOrderItems();
     fetchCategories();
+    fetchAddOns();
 
     const orderItemsSubscription = supabase
       .channel("order-items")
@@ -98,6 +110,18 @@ export default function CustomerOrderingPage({
       )
       .subscribe();
 
+    const addOnsSubscription = supabase
+      .channel("add-ons")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "add_ons" },
+        (payload) => {
+          console.log("Add-on change received!", payload);
+          fetchAddOns();
+        }
+      )
+      .subscribe();
+
     const menuItemsSubscription = supabase
       .channel("menu-items")
       .on(
@@ -112,9 +136,20 @@ export default function CustomerOrderingPage({
 
     return () => {
       supabase.removeChannel(orderItemsSubscription);
+      supabase.removeChannel(addOnsSubscription);
       supabase.removeChannel(menuItemsSubscription);
     };
   }, [order.id]);
+
+  const fetchAddOns = async () => {
+    const { data, error } = await supabase
+      .from("add_ons")
+      .select("*")
+      .eq("is_available", true);
+
+    if (error) throw error;
+    setAddOns(data);
+  };
 
   const fetchCategories = async () => {
     try {
@@ -151,7 +186,8 @@ export default function CustomerOrderingPage({
     }
 
     const existingItem = orderItems.find(
-      (item) => item.menu_item_id === menuItem.id && item.status === "pending"
+      (item) =>
+        item.menu_item_id === menuItem.id && item.status === "confirming"
     );
 
     if (existingItem) {
@@ -167,7 +203,7 @@ export default function CustomerOrderingPage({
         order_id: order.id,
         menu_item_id: menuItem.id,
         quantity: 1,
-        status: "pending",
+        status: "confirming",
       });
 
       if (error) {
@@ -218,23 +254,18 @@ export default function CustomerOrderingPage({
         title: "Checkout Options",
         text: "What would you like to do?",
         icon: "question",
-        showDenyButton: true,
         showCancelButton: true,
         confirmButtonText: "Checkout",
-        denyButtonText: "Order Again",
         confirmButtonColor: "#3085d6",
-        denyButtonColor: "#28a745",
         cancelButtonColor: "#d33",
       });
 
       if (result.isDenied) {
-        // Handle "Order Again" option
-        setIsReceiptModalOpen(false); // Close the receipt modal if it's open
-        return; // Exit the function to allow for new orders
+        setIsReceiptModalOpen(false);
+        return;
       }
 
       if (result.isConfirmed) {
-        // Show a final confirmation
         const confirmResult = await Swal.fire({
           title: "Confirm Checkout",
           text: "Are you sure you want to proceed with the checkout?",
@@ -246,7 +277,6 @@ export default function CustomerOrderingPage({
         });
 
         if (confirmResult.isConfirmed) {
-          // Updating the orders table, status to completed
           const { error: orderError } = await supabase
             .from("orders")
             .update({
@@ -256,11 +286,15 @@ export default function CustomerOrderingPage({
             })
             .eq("id", order.id);
 
+          const { data, error } = await supabase
+            .from("order_items")
+            .delete()
+            .eq("order_id", order.id);
+
           if (orderError) {
             throw orderError;
           }
 
-          // Updating the tables status to available
           const { error: tableError } = await supabase
             .from("tables")
             .update({ status: "available" })
@@ -269,21 +303,26 @@ export default function CustomerOrderingPage({
           if (tableError) {
             throw tableError;
           }
+          const { error: deleteQrError } = await supabase
+            .from("qr_codes")
+            .delete()
+            .eq("order_id", order.id);
 
-          // Update QR code to expired
+          if (deleteQrError) {
+            throw deleteQrError;
+          }
+
           const { error: qrError } = await supabase
             .from("qr_codes")
             .update({
               expired_at: new Date().toISOString(),
             })
-
             .eq("order_id", order.id);
 
           if (qrError) {
             throw qrError;
           }
 
-          // If all updates are successful, show success message and receipt modal
           await Swal.fire({
             title: "Success!",
             text: "Checkout completed successfully",
@@ -306,9 +345,95 @@ export default function CustomerOrderingPage({
     }
   };
 
-  const filteredMenuItems = selectedCategory
-    ? menuItems.filter((item) => item.categories?.id === selectedCategory)
-    : menuItems;
+  const confirmOrderItem = async (orderItemId: string) => {
+    const { error } = await supabase
+      .from("order_items")
+      .update({ status: "pending" })
+      .eq("id", orderItemId);
+
+    if (error) {
+      console.error("Error confirming order item:", error);
+    } else {
+      console.log("Order item confirmed and moved to pending.");
+    }
+  };
+
+  const updateQuantity = async (menuItemId: string, delta: number) => {
+    const existingItem = orderItems.find(
+      (item) => item.menu_item_id === menuItemId && item.status === "confirming"
+    );
+
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + delta;
+      if (newQuantity < 1) {
+        await removeOrderItem(existingItem.id);
+      } else if (newQuantity > MAX_ITEMS_PER_MENU_ITEM) {
+        alert(
+          `You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`
+        );
+      } else {
+        await updateOrderItemQuantity(existingItem.id, newQuantity);
+      }
+    } else {
+      await addToOrder(menuItems.find((mi) => mi.id === menuItemId)!);
+    }
+  };
+
+  const addAddOnToOrder = async (addOn: AddOns) => {
+    if (!addOn.is_available) {
+      toast({
+        title: "Error",
+        description: "This add-on is not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingItem = orderItems.find(
+      (item) => item.menu_item_id === addOn.id && item.status === "confirming"
+    );
+
+    if (existingItem) {
+      if (existingItem.quantity >= MAX_ITEMS_PER_MENU_ITEM) {
+        alert(
+          `You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`
+        );
+        return;
+      }
+      await updateOrderItemQuantity(existingItem.id, existingItem.quantity + 1);
+    } else {
+      const { error } = await supabase.from("order_items").insert({
+        order_id: order.id,
+        menu_item_id: addOn.id,
+        quantity: 1,
+        status: "confirming",
+        is_addon: true,
+      });
+
+      if (error) {
+        console.error("Error adding add-on to order:", error);
+      }
+    }
+  };
+
+  // Get display items based on selected category or add-ons
+  const getDisplayItems = () => {
+    if (showingAddOns) {
+      return addOns
+        .filter((addOn) => addOn.is_available)
+        .map((addOn) => ({
+          id: addOn.id,
+          name: addOn.name,
+          description: `$${addOn.price.toFixed(2)}`,
+          is_available: addOn.is_available,
+          image_url: "/api/placeholder/400/320", // Use a placeholder image for add-ons
+        }));
+    }
+
+    return selectedCategory
+      ? menuItems.filter((item) => item.categories?.id === selectedCategory)
+      : menuItems;
+  };
 
   const pendingItemsCount = orderItems.filter(
     (item) => item.status === "pending"
@@ -319,7 +444,7 @@ export default function CustomerOrderingPage({
       {/* Mobile Cart Toggle Button */}
       <button
         onClick={() => setShowCart(!showCart)}
-        className="fixed bottom-4 right-4 md:hidden z-50 bg-red-500 text-white p-4 rounded-full shadow-lg"
+        className="fixed bottom-4 right-4 md:hidden z-50 bg-red-500 text-white p-3 rounded-full shadow-lg flex items-center justify-center"
       >
         <ShoppingCart className="w-6 h-6" />
         {pendingItemsCount > 0 && (
@@ -341,40 +466,60 @@ export default function CustomerOrderingPage({
 
         {/* Categories Scrollable Container */}
         <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2">
-          <div className="inline-flex">
+          <div className="inline-flex space-x-2">
             <Button
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => {
+                setSelectedCategory(null);
+                setShowingAddOns(false);
+              }}
               className={`${
-                selectedCategory === null
+                selectedCategory === null &&
+                !showingAddOns &&
+                selectedCategory === null &&
+                !showingAddOns
                   ? "bg-[#383838] text-white"
                   : "bg-[#242424] text-white"
-              } mr-2 px-7 py-5 hover:bg-[#383838] hover:text-white`}
+              } px-4 py-2 hover:bg-[#383838] hover:text-white`}
             >
               All
             </Button>
             {categories.map((category) => (
               <Button
                 key={category.id}
-                onClick={() =>
+                onClick={() => {
                   setSelectedCategory(
                     selectedCategory === category.id ? null : category.id
-                  )
-                }
+                  );
+                  setShowingAddOns(false);
+                }}
                 className={`${
                   selectedCategory === category.id
                     ? "bg-[#383838] text-white"
                     : "bg-[#242424] text-white"
-                } mr-2 px-7 py-5 hover:bg-[#383838]  hover:text-white`}
+                } px-4 py-2 hover:bg-[#383838] hover:text-white`}
               >
                 {category.name}
               </Button>
             ))}
+            <Button
+              onClick={() => {
+                setShowingAddOns(!showingAddOns);
+                setSelectedCategory(null);
+              }}
+              className={`${
+                showingAddOns
+                  ? "bg-[#383838] text-white"
+                  : "bg-[#242424] text-white"
+              } px-4 py-2 hover:bg-[#383838] hover:text-white`}
+            >
+              Add-ons
+            </Button>
           </div>
         </div>
 
-        {/* Menu Items Grid */}
+        {/* Display Grid - Shows either menu items or add-ons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMenuItems.map((item) => (
+          {getDisplayItems().map((item) => (
             <div key={item.id} className="border p-4 rounded">
               <div className="relative w-full pt-[75%]">
                 <Image
@@ -388,8 +533,30 @@ export default function CustomerOrderingPage({
                 <h3 className="font-bold mt-2">{item.name}</h3>
                 <p className="text-sm text-gray-600">{item.description}</p>
               </div>
+              <div className="flex items-center justify-between mt-2">
+                <button
+                  onClick={() => updateQuantity(item.id, -1)}
+                  className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="bg-white px-2 py-1">
+                  {orderItems.find((oi) => oi.menu_item_id === item.id)
+                    ?.quantity || 0}
+                </span>
+                <button
+                  onClick={() => updateQuantity(item.id, 1)}
+                  className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
               <button
-                onClick={() => addToOrder(item)}
+                onClick={() =>
+                  showingAddOns
+                    ? addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
+                    : addToOrder(item)
+                }
                 className={`mt-2 px-4 py-2 rounded w-full ${
                   !item.is_available
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
@@ -442,7 +609,7 @@ export default function CustomerOrderingPage({
         </button>
 
         <h2 className="text-xl font-bold mb-4">Your Order</h2>
-        {["pending", "preparing", "served"].map((stage) => (
+        {["confirming", "pending", "preparing", "served"].map((stage) => (
           <div key={stage} className="mb-4">
             <h3 className="font-bold capitalize mb-2">{stage}</h3>
             {orderItems
@@ -459,7 +626,7 @@ export default function CustomerOrderingPage({
                     <span className="w-full sm:w-auto mb-2 sm:mb-0">
                       {menuItem?.name}
                     </span>
-                    {stage === "pending" ? (
+                    {stage === "confirming" || stage === "pending" ? (
                       <div className="flex items-center">
                         <button
                           onClick={() =>
@@ -486,6 +653,14 @@ export default function CustomerOrderingPage({
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        {stage === "confirming" && (
+                          <button
+                            onClick={() => confirmOrderItem(item.id)}
+                            className="ml-2 bg-blue-500 text-white px-2 py-1 rounded"
+                          >
+                            Confirm
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <span>x {item.quantity}</span>
@@ -499,7 +674,7 @@ export default function CustomerOrderingPage({
           onClick={checkout}
           className="w-full bg-red-500 shadow-md hover:shadow-xl transition-all duration-300 text-white px-4 py-2 rounded mt-4"
         >
-          Done Eating
+          Proceed To Payment
         </button>
       </div>
 
