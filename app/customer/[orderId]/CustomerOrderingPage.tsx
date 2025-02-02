@@ -27,6 +27,16 @@ type AddOns = {
   name: string;
   price: number;
   is_available: boolean;
+  image_url: string; // Added this field
+};
+
+type DisplayItem = {
+  id: string;
+  name: string;
+  description: string;
+  is_available: boolean;
+  image_url: string;
+  isAddOn?: boolean;
 };
 
 type OrderItem = {
@@ -402,19 +412,24 @@ export default function CustomerOrderingPage({
             })
             .eq("id", order.id);
 
-          const { data, error } = await supabase
+          const { error: deleteOrderItemsError } = await supabase
             .from("order_items")
             .delete()
-            .eq("order_id", order.id);
+            .eq("order_id", order.id)
+            .neq("status", ["served", "preparing"]);
 
-          // Delete order add-ons
-          const { error: addOnsError } = await supabase
+          if (deleteOrderItemsError) {
+            throw deleteOrderItemsError;
+          }
+
+          const { error: deleteAddOnsError } = await supabase
             .from("order_addons")
             .delete()
-            .eq("order_id", order.id);
+            .eq("order_id", order.id)
+            .neq("status", "served");
 
-          if (orderError || addOnsError) {
-            throw orderError || addOnsError;
+          if (deleteAddOnsError) {
+            throw deleteAddOnsError;
           }
 
           const { error: tableError } = await supabase
@@ -516,7 +531,7 @@ export default function CustomerOrderingPage({
   };
 
   // Get display items based on selected category or add-ons
-  const getDisplayItems = () => {
+  const getDisplayItems = (): DisplayItem[] => {
     if (showingAddOns) {
       return addOns
         .filter((addOn) => addOn.is_available)
@@ -525,13 +540,30 @@ export default function CustomerOrderingPage({
           name: addOn.name,
           description: `₱${addOn.price.toFixed(2)}`,
           is_available: addOn.is_available,
-          image_url: "/api/placeholder/400/320", // Use a placeholder image for add-ons
+          image_url: addOn.image_url || "/api/placeholder/400/320",
+          isAddOn: true,
         }));
     }
 
     return selectedCategory
-      ? menuItems.filter((item) => item.categories?.id === selectedCategory)
-      : menuItems;
+      ? menuItems
+          .filter((item) => item.categories?.id === selectedCategory)
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            is_available: item.is_available,
+            image_url: item.image_url || "/api/placeholder/400/320",
+            isAddOn: false,
+          }))
+      : menuItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          is_available: item.is_available,
+          image_url: item.image_url || "/api/placeholder/400/320",
+          isAddOn: false,
+        }));
   };
 
   const pendingItemsCount = orderItems.filter(
@@ -626,13 +658,14 @@ export default function CustomerOrderingPage({
                   alt={item.name}
                   fill
                   className="absolute top-0 left-0 w-full h-full object-cover rounded"
+                  unoptimized={true}
                 />
               </div>
               <div>
                 <h3 className="font-bold mt-2">{item.name}</h3>
                 <p className="text-sm text-gray-600">{item.description}</p>
               </div>
-              {showingAddOns ? (
+              {item.isAddOn ? (
                 <button
                   onClick={() =>
                     addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
@@ -865,9 +898,9 @@ export default function CustomerOrderingPage({
         tableNumber={order.tables.table_number}
         packageName={order.packages.name}
         customerCount={order.customer_count}
-        totalPrice={order.total_price}
         orderItems={orderItems}
         menuItems={menuItems}
+        orderId={order.id} // Add this line
       />
     </div>
   );

@@ -5,6 +5,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import supabase from "@/lib/supabaseClient";
 
 interface DigitalReceiptModalProps {
   isOpen: boolean;
@@ -12,7 +14,6 @@ interface DigitalReceiptModalProps {
   tableNumber: number;
   packageName: string;
   customerCount: number;
-  totalPrice: number;
   orderItems: Array<{
     menu_item_id: string;
     quantity: number;
@@ -23,6 +24,7 @@ interface DigitalReceiptModalProps {
     name: string;
     description: string;
   }>;
+  orderId: string; // Add orderId prop
 }
 
 const DigitalReceiptModal = ({
@@ -31,10 +33,75 @@ const DigitalReceiptModal = ({
   tableNumber,
   packageName,
   customerCount,
-  totalPrice,
   orderItems,
   menuItems,
+  orderId,
 }: DigitalReceiptModalProps) => {
+  const [packagePrice, setPackagePrice] = useState(0);
+  const [orderAddOns, setOrderAddOns] = useState<any[]>([]);
+  const [addOns, setAddOns] = useState<any[]>([]);
+  const [totalPrice, setTotalPrice] = useState(0);
+
+  useEffect(() => {
+    const fetchPackagePrice = async () => {
+      const { data, error } = await supabase
+        .from("packages")
+        .select("price")
+        .eq("name", packageName)
+        .single();
+
+      if (error) {
+        console.error("Error fetching package price:", error);
+      } else {
+        setPackagePrice(data.price);
+      }
+    };
+
+    const fetchOrderAddOns = async () => {
+      const { data: orderAddOnsData, error: orderAddOnsError } = await supabase
+        .from("order_addons")
+        .select("*")
+        .eq("order_id", orderId);
+
+      if (orderAddOnsError) {
+        console.error("Error fetching order add-ons:", orderAddOnsError);
+      } else {
+        setOrderAddOns(orderAddOnsData || []);
+      }
+
+      const { data: addOnsData, error: addOnsError } = await supabase
+        .from("add_ons")
+        .select("*");
+
+      if (addOnsError) {
+        console.error("Error fetching add-ons:", addOnsError);
+      } else {
+        setAddOns(addOnsData || []);
+      }
+    };
+
+    if (isOpen) {
+      fetchPackagePrice();
+      fetchOrderAddOns();
+    }
+  }, [isOpen, packageName, orderId]);
+
+  useEffect(() => {
+    // Calculate total price: (package price × customer count) + sum of (add-on price × quantity)
+    const packageTotal = packagePrice * customerCount;
+
+    // Calculate add-ons total
+    const addOnsTotal = orderAddOns.reduce((sum, orderAddOn) => {
+      const addOn = addOns.find((a) => a.id === orderAddOn.addon_id);
+      if (addOn && orderAddOn.status !== "cancelled") {
+        return sum + (addOn.price || 0) * orderAddOn.quantity;
+      }
+      return sum;
+    }, 0);
+
+    setTotalPrice(packageTotal + addOnsTotal);
+  }, [packagePrice, customerCount, orderAddOns, addOns]);
+
   const currentDate = new Date().toLocaleString("en-US", {
     year: "numeric",
     month: "long",
@@ -43,17 +110,6 @@ const DigitalReceiptModal = ({
     minute: "2-digit",
   });
 
-  const getItemName = (menuItemId: string) => {
-    const menuItem = menuItems.find((item) => item.id === menuItemId);
-    return menuItem?.name || "Unknown Item";
-  };
-
-  // Calculate subtotal for each item
-  const calculateSubtotal = (quantity: number, price: number) => {
-    return quantity * price;
-  };
-
-  // Format number to currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
@@ -84,18 +140,53 @@ const DigitalReceiptModal = ({
             <p>Number of Customers: {customerCount}</p>
           </div>
 
-          {/* <div className="my-4">
-            <p className="font-bold">ORDER DETAILS:</p>
-            <div className="mt-2">
-              {orderItems.map((item, index) => (
-                <div key={index} className="flex justify-between">
+          <div className="mt-4">
+            <p className="font-bold">Package Details:</p>
+            <div className="flex justify-between">
+              <span>{formatCurrency(packagePrice * customerCount)}</span>
+            </div>
+          </div>
+
+          {orderAddOns.length > 0 && (
+            <div className="mt-4">
+              <p className="font-bold">Add-ons:</p>
+              {orderAddOns.map((orderAddOn) => {
+                const addOn = addOns.find((a) => a.id === orderAddOn.addon_id);
+                if (addOn && orderAddOn.status !== "cancelled") {
+                  return (
+                    <div key={orderAddOn.id} className="flex justify-between">
+                      <span>
+                        {addOn.name} ({formatCurrency(addOn.price)} ×{" "}
+                        {orderAddOn.quantity})
+                      </span>
+                      <span>
+                        {formatCurrency(addOn.price * orderAddOn.quantity)}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+              <div className="border-t border-gray-200 mt-2 pt-2">
+                <div className="flex justify-between">
+                  <span className="font-semibold">Add-ons Subtotal:</span>
                   <span>
-                    {getItemName(item.menu_item_id)} x{item.quantity}
+                    {formatCurrency(
+                      orderAddOns.reduce((sum, orderAddOn) => {
+                        const addOn = addOns.find(
+                          (a) => a.id === orderAddOn.addon_id
+                        );
+                        if (addOn && orderAddOn.status !== "cancelled") {
+                          return sum + addOn.price * orderAddOn.quantity;
+                        }
+                        return sum;
+                      }, 0)
+                    )}
                   </span>
                 </div>
-              ))}
+              </div>
             </div>
-          </div> */}
+          )}
 
           <div className="border-t border-black pt-2 mt-4">
             <div className="flex justify-between font-bold">
@@ -114,11 +205,14 @@ const DigitalReceiptModal = ({
         <div className="flex justify-between mt-4">
           <Button
             onClick={() => window.print()}
-            className="bg-green-500 hover:bg-green-600"
+            className="bg-green-500 hover:bg-green-600 text-white"
           >
             Print Receipt
           </Button>
-          <Button onClick={onClose} className="bg-gray-500 hover:bg-gray-600">
+          <Button
+            onClick={onClose}
+            className="bg-gray-500 hover:bg-gray-600 text-white"
+          >
             Close
           </Button>
         </div>
