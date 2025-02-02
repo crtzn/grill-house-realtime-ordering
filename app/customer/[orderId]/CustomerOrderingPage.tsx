@@ -656,8 +656,11 @@ export default function CustomerOrderingPage({
                       <Minus className="w-4 h-4" />
                     </button>
                     <span className="bg-white px-2 py-1">
-                      {orderItems.find((oi) => oi.menu_item_id === item.id)
-                        ?.quantity || 0}
+                      {orderItems.find(
+                        (oi) =>
+                          oi.menu_item_id === item.id &&
+                          oi.status === "confirming"
+                      )?.quantity || 0}
                     </span>
                     <button
                       onClick={() => updateQuantity(item.id, 1)}

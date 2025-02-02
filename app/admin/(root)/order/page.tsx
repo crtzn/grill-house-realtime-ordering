@@ -84,7 +84,7 @@ export default function OrderManagement() {
     };
   }, []);
 
-  async function fetchOrderAddons() {
+  async function fetchOrderAddOns() {
     const { data, error } = await supabase
       .from("order_addons")
       .select(
@@ -110,7 +110,7 @@ export default function OrderManagement() {
         addon_id: addon.addon_id,
         quantity: addon.quantity,
         status: addon.status,
-        addon_name: addon.addons?.name,
+        addon_name: addon.add_ons?.name || "Unknown Addon", // Ensure a fallback name
       }));
       setOrderAddons(formattedOrderAddons);
     }
@@ -150,37 +150,6 @@ export default function OrderManagement() {
       );
     }
   };
-
-  async function fetchOrderAddOns() {
-    const { data, error } = await supabase
-      .from("order_addons")
-      .select(
-        `
-      id,
-      order_id,
-      addon_id,
-      quantity,
-      status,
-      add_ons (
-        name
-      )
-    `
-      )
-      .order("id", { ascending: true });
-    if (error) {
-      console.log("Error fetching order addons:", error);
-    } else if (data) {
-      const formattedOrderAddons: OrderAddon[] = data.map((addon: any) => ({
-        id: addon.id,
-        order_id: addon.order_id,
-        addon_id: addon.addon_id,
-        quantity: addon.quantity,
-        status: addon.status,
-        addon_name: addon.addons?.name,
-      }));
-      setOrderAddons(formattedOrderAddons);
-    }
-  }
 
   async function fetchOrders() {
     const { data, error } = await supabase
