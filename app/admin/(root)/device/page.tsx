@@ -253,7 +253,7 @@ export default function TableManagement() {
     if (table.status === "occupied") {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, packages(price)")
+        .select("*, packages(name, price)") // Fetch both name and price
         .eq("table_id", table.id)
         .eq("status", "active")
         .single();
@@ -266,8 +266,10 @@ export default function TableManagement() {
           variant: "destructive",
         });
       } else if (data) {
+        console.log("Fetched Order Data:", data); // Debugging statement
         const orderWithPrice = {
           ...data,
+          package_name: data.packages.name, // Ensure this is correctly assigned
           total_price: calculateTotalPrice(
             data.customer_count,
             data.packages.price

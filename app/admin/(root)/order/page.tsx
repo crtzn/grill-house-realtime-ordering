@@ -21,14 +21,25 @@ interface OrderItem {
   menu_item_name: string;
 }
 
+interface OrderAddon {
+  id: string;
+  order_id: string;
+  addon_id: string;
+  quantity: number;
+  status: string;
+  addon_name: string;
+}
+
 export default function OrderManagement() {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderAddons, setOrderAddons] = useState<OrderAddon[]>([]);
 
   useEffect(() => {
     fetchOrders();
     fetchOrderItems();
+    fetchOrderAddOns();
 
     const ordersSubscription = supabase
       .channel("orders")
@@ -54,11 +65,122 @@ export default function OrderManagement() {
       )
       .subscribe();
 
+    const orderAddonsSubscription = supabase
+      .channel("order_addons")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_addons" },
+        (payload) => {
+          console.log("Order addons change received!", payload);
+          handleOrderAddonChange(payload);
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ordersSubscription);
       supabase.removeChannel(orderItemsSubscription);
+      supabase.removeChannel(orderAddonsSubscription);
     };
   }, []);
+
+  async function fetchOrderAddons() {
+    const { data, error } = await supabase
+      .from("order_addons")
+      .select(
+        `
+        id,
+        order_id,
+        addon_id,
+        quantity,
+        status,
+        add_ons (
+          name
+        )
+      `
+      )
+      .order("id", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching order addons:", error);
+    } else if (data) {
+      const formattedOrderAddons: OrderAddon[] = data.map((addon: any) => ({
+        id: addon.id,
+        order_id: addon.order_id,
+        addon_id: addon.addon_id,
+        quantity: addon.quantity,
+        status: addon.status,
+        addon_name: addon.addons?.name,
+      }));
+      setOrderAddons(formattedOrderAddons);
+    }
+  }
+  const handleOrderAddonChange = async (payload: any) => {
+    if (payload.eventType === "INSERT") {
+      const { data: addonData, error: addonError } = await supabase
+        .from("add_ons")
+        .select("name")
+        .eq("id", payload.new.addon_id)
+        .single();
+
+      if (addonError) {
+        console.error("Error fetching addon data:", addonError);
+        return;
+      }
+
+      const newOrderAddon: OrderAddon = {
+        id: payload.new.id,
+        order_id: payload.new.order_id,
+        addon_id: payload.new.addon_id,
+        quantity: payload.new.quantity,
+        status: payload.new.status,
+        addon_name: addonData.name,
+      };
+
+      setOrderAddons((prevAddons) => [...prevAddons, newOrderAddon]);
+    } else if (payload.eventType === "UPDATE") {
+      setOrderAddons((prevAddons) =>
+        prevAddons.map((addon) =>
+          addon.id === payload.new.id ? { ...addon, ...payload.new } : addon
+        )
+      );
+    } else if (payload.eventType === "DELETE") {
+      setOrderAddons((prevAddons) =>
+        prevAddons.filter((addon) => addon.id !== payload.old.id)
+      );
+    }
+  };
+
+  async function fetchOrderAddOns() {
+    const { data, error } = await supabase
+      .from("order_addons")
+      .select(
+        `
+      id,
+      order_id,
+      addon_id,
+      quantity,
+      status,
+      add_ons (
+        name
+      )
+    `
+      )
+      .order("id", { ascending: true });
+    if (error) {
+      console.log("Error fetching order addons:", error);
+    } else if (data) {
+      const formattedOrderAddons: OrderAddon[] = data.map((addon: any) => ({
+        id: addon.id,
+        order_id: addon.order_id,
+        addon_id: addon.addon_id,
+        quantity: addon.quantity,
+        status: addon.status,
+        addon_name: addon.addons?.name,
+      }));
+      setOrderAddons(formattedOrderAddons);
+    }
+  }
 
   async function fetchOrders() {
     const { data, error } = await supabase
@@ -159,6 +281,46 @@ export default function OrderManagement() {
     }
   }
 
+  async function updateOrderAddonStatus(
+    addonId: string,
+    newStatus: string,
+    orderId: string
+  ) {
+    const { error } = await supabase
+      .from("order_addons")
+      .update({ status: newStatus })
+      .eq("id", addonId);
+
+    if (error) {
+      console.error("Error updating order addon status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update order addon status.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: `Order addon status updated to ${newStatus}.`,
+      });
+
+      if (newStatus === "served") {
+        const { data: remainingAddons } = await supabase
+          .from("order_addons")
+          .select("id")
+          .eq("order_id", orderId)
+          .neq("status", "served");
+
+        if (remainingAddons?.length === 0) {
+          toast({
+            title: "Order Completed",
+            description: "All addons have been served.",
+          });
+        }
+      }
+    }
+  }
+
   const handleOrderChange = async (payload: any) => {
     if (payload.eventType === "INSERT") {
       // Fetch the related table data for the new order
@@ -247,7 +409,13 @@ export default function OrderManagement() {
           const activeItems = orderItems.filter(
             (item) => item.order_id === order.id && item.status !== "served"
           );
-          if (activeItems.length === 0) return null;
+          const activeAddons = orderAddons.filter(
+            (addon) => addon.order_id === order.id && addon.status !== "served"
+          );
+
+          // Only hide if BOTH items and addons are empty/served
+          if (activeItems.length === 0 && activeAddons.length === 0)
+            return null;
 
           return (
             <div key={order.id} className="mb-8 p-4 border rounded shadow-md">
@@ -288,6 +456,49 @@ export default function OrderManagement() {
                         <button
                           onClick={() =>
                             updateOrderItemStatus(item.id, "served", order.id)
+                          }
+                          className="px-3 py-1 bg-green-500 text-white rounded"
+                        >
+                          Served
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {activeAddons.map((addon) => (
+                  <div
+                    key={addon.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 bg-gray-100 rounded"
+                  >
+                    <div className="mb-2 sm:mb-0">
+                      <span className="font-medium">{addon.addon_name}</span>
+                      <span className="ml-2 text-sm text-gray-600">
+                        Quantity: {addon.quantity}
+                      </span>
+                      <span className="ml-2 text-sm text-gray-600">
+                        Status: {addon.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      {addon.status === "pending" && (
+                        <button
+                          onClick={() =>
+                            updateOrderAddonStatus(
+                              addon.id,
+                              "preparing",
+                              order.id
+                            )
+                          }
+                          className="px-3 py-1 bg-yellow-500 text-white rounded mr-2"
+                        >
+                          Preparing
+                        </button>
+                      )}
+                      {addon.status === "preparing" && (
+                        <button
+                          onClick={() =>
+                            updateOrderAddonStatus(addon.id, "served", order.id)
                           }
                           className="px-3 py-1 bg-green-500 text-white rounded"
                         >

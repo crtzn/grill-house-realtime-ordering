@@ -36,6 +36,14 @@ type OrderItem = {
   status: "confirming" | "pending" | "preparing" | "served" | "cancelled";
 };
 
+type OrderAddOn = {
+  id: string;
+  order_id: string;
+  addon_id: string;
+  quantity: number;
+  status: "confirming" | "pending" | "preparing" | "served";
+};
+
 type Order = {
   id: string;
   table_id: string;
@@ -62,6 +70,7 @@ export default function CustomerOrderingPage({
   const [order, setOrder] = useState<Order>(initialOrder);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderAddOns, setOrderAddOns] = useState<OrderAddOn[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
@@ -92,6 +101,7 @@ export default function CustomerOrderingPage({
     fetchOrderItems();
     fetchCategories();
     fetchAddOns();
+    fetchOrderAddOns();
 
     const orderItemsSubscription = supabase
       .channel("order-items")
@@ -134,12 +144,43 @@ export default function CustomerOrderingPage({
       )
       .subscribe();
 
+    const orderAddOnsSubscription = supabase
+      .channel("order-addons")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "order_addons",
+          filter: `order_id=eq.${order.id}`,
+        },
+        (payload) => {
+          console.log("Order add-on change received!", payload);
+          fetchOrderAddOns();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(orderItemsSubscription);
       supabase.removeChannel(addOnsSubscription);
       supabase.removeChannel(menuItemsSubscription);
+      supabase.removeChannel(orderAddOnsSubscription);
     };
   }, [order.id]);
+
+  const fetchOrderAddOns = async () => {
+    const { data, error } = await supabase
+      .from("order_addons")
+      .select("*")
+      .eq("order_id", order.id);
+
+    if (error) {
+      console.error("Error fetching order add-ons:", error);
+    } else {
+      setOrderAddOns(data);
+    }
+  };
 
   const fetchAddOns = async () => {
     const { data, error } = await supabase
@@ -212,6 +253,45 @@ export default function CustomerOrderingPage({
     }
   };
 
+  const addAddOnToOrder = async (addOn: AddOns) => {
+    if (!addOn.is_available) {
+      toast({
+        title: "Error",
+        description: "This add-on is not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingAddOn = orderAddOns.find(
+      (ao) => ao.addon_id === addOn.id && ao.status === "confirming"
+    );
+
+    if (existingAddOn) {
+      if (existingAddOn.quantity >= MAX_ITEMS_PER_MENU_ITEM) {
+        alert(
+          `You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`
+        );
+        return;
+      }
+      await updateOrderAddOnQuantity(
+        existingAddOn.id,
+        existingAddOn.quantity + 1
+      );
+    } else {
+      const { error } = await supabase.from("order_addons").insert({
+        order_id: order.id,
+        addon_id: addOn.id,
+        quantity: 1,
+        status: "confirming",
+      });
+
+      if (error) {
+        console.error("Error adding add-on to order:", error);
+      }
+    }
+  };
+
   const updateOrderItemQuantity = async (
     orderItemId: string,
     newQuantity: number
@@ -233,6 +313,27 @@ export default function CustomerOrderingPage({
     }
   };
 
+  const updateOrderAddOnQuantity = async (
+    orderAddOnId: string,
+    newQuantity: number
+  ) => {
+    if (newQuantity < 1) {
+      await removeOrderAddOn(orderAddOnId);
+    } else if (newQuantity > MAX_ITEMS_PER_MENU_ITEM) {
+      alert(`You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`);
+      return;
+    } else {
+      const { error } = await supabase
+        .from("order_addons")
+        .update({ quantity: newQuantity })
+        .eq("id", orderAddOnId);
+
+      if (error) {
+        console.error("Error updating order add-on quantity:", error);
+      }
+    }
+  };
+
   const removeOrderItem = async (orderItemId: string) => {
     const { error } = await supabase
       .from("order_items")
@@ -244,6 +345,21 @@ export default function CustomerOrderingPage({
     } else {
       setOrderItems((prevOrderItems) =>
         prevOrderItems.filter((item) => item.id !== orderItemId)
+      );
+    }
+  };
+
+  const removeOrderAddOn = async (orderAddOnId: string) => {
+    const { error } = await supabase
+      .from("order_addons")
+      .delete()
+      .eq("id", orderAddOnId);
+
+    if (error) {
+      console.error("Error removing order add-on:", error);
+    } else {
+      setOrderAddOns((prevOrderAddOns) =>
+        prevOrderAddOns.filter((ao) => ao.id !== orderAddOnId)
       );
     }
   };
@@ -291,8 +407,14 @@ export default function CustomerOrderingPage({
             .delete()
             .eq("order_id", order.id);
 
-          if (orderError) {
-            throw orderError;
+          // Delete order add-ons
+          const { error: addOnsError } = await supabase
+            .from("order_addons")
+            .delete()
+            .eq("order_id", order.id);
+
+          if (orderError || addOnsError) {
+            throw orderError || addOnsError;
           }
 
           const { error: tableError } = await supabase
@@ -303,6 +425,7 @@ export default function CustomerOrderingPage({
           if (tableError) {
             throw tableError;
           }
+
           const { error: deleteQrError } = await supabase
             .from("qr_codes")
             .delete()
@@ -358,6 +481,19 @@ export default function CustomerOrderingPage({
     }
   };
 
+  const confirmOrderAddOn = async (orderAddOnId: string) => {
+    const { error } = await supabase
+      .from("order_addons")
+      .update({ status: "pending" })
+      .eq("id", orderAddOnId);
+
+    if (error) {
+      console.error("Error confirming order add-on:", error);
+    } else {
+      console.log("Order add-on confirmed and moved to pending.");
+    }
+  };
+
   const updateQuantity = async (menuItemId: string, delta: number) => {
     const existingItem = orderItems.find(
       (item) => item.menu_item_id === menuItemId && item.status === "confirming"
@@ -376,43 +512,6 @@ export default function CustomerOrderingPage({
       }
     } else {
       await addToOrder(menuItems.find((mi) => mi.id === menuItemId)!);
-    }
-  };
-
-  const addAddOnToOrder = async (addOn: AddOns) => {
-    if (!addOn.is_available) {
-      toast({
-        title: "Error",
-        description: "This add-on is not available",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const existingItem = orderItems.find(
-      (item) => item.menu_item_id === addOn.id && item.status === "confirming"
-    );
-
-    if (existingItem) {
-      if (existingItem.quantity >= MAX_ITEMS_PER_MENU_ITEM) {
-        alert(
-          `You can only order up to ${MAX_ITEMS_PER_MENU_ITEM} of each item`
-        );
-        return;
-      }
-      await updateOrderItemQuantity(existingItem.id, existingItem.quantity + 1);
-    } else {
-      const { error } = await supabase.from("order_items").insert({
-        order_id: order.id,
-        menu_item_id: addOn.id,
-        quantity: 1,
-        status: "confirming",
-        is_addon: true,
-      });
-
-      if (error) {
-        console.error("Error adding add-on to order:", error);
-      }
     }
   };
 
@@ -533,63 +632,77 @@ export default function CustomerOrderingPage({
                 <h3 className="font-bold mt-2">{item.name}</h3>
                 <p className="text-sm text-gray-600">{item.description}</p>
               </div>
-              <div className="flex items-center justify-between mt-2">
+              {showingAddOns ? (
                 <button
-                  onClick={() => updateQuantity(item.id, -1)}
-                  className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                  onClick={() =>
+                    addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
+                  }
+                  className={`mt-4 px-4 py-2 rounded w-full ${
+                    !item.is_available
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-green-500 text-white hover:bg-green-600"
+                  }`}
+                  disabled={!item.is_available}
                 >
-                  <Minus className="w-4 h-4" />
+                  {!item.is_available ? "Unavailable" : "Add to Order"}
                 </button>
-                <span className="bg-white px-2 py-1">
-                  {orderItems.find((oi) => oi.menu_item_id === item.id)
-                    ?.quantity || 0}
-                </span>
-                <button
-                  onClick={() => updateQuantity(item.id, 1)}
-                  className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-              <button
-                onClick={() =>
-                  showingAddOns
-                    ? addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
-                    : addToOrder(item)
-                }
-                className={`mt-2 px-4 py-2 rounded w-full ${
-                  !item.is_available
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : orderItems.some(
+              ) : (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => updateQuantity(item.id, -1)}
+                      className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="bg-white px-2 py-1">
+                      {orderItems.find((oi) => oi.menu_item_id === item.id)
+                        ?.quantity || 0}
+                    </span>
+                    <button
+                      onClick={() => updateQuantity(item.id, 1)}
+                      className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => addToOrder(item)}
+                    className={`mt-2 px-4 py-2 rounded w-full ${
+                      !item.is_available
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : orderItems.some(
+                            (oi) =>
+                              oi.menu_item_id === item.id &&
+                              oi.status === "pending" &&
+                              oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                          )
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-green-500 text-white hover:bg-green-600"
+                    }`}
+                    disabled={
+                      !item.is_available ||
+                      orderItems.some(
                         (oi) =>
                           oi.menu_item_id === item.id &&
                           oi.status === "pending" &&
                           oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
                       )
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-green-500 text-white hover:bg-green-600"
-                }`}
-                disabled={
-                  !item.is_available ||
-                  orderItems.some(
-                    (oi) =>
-                      oi.menu_item_id === item.id &&
-                      oi.status === "pending" &&
-                      oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                  )
-                }
-              >
-                {!item.is_available
-                  ? "Unavailable"
-                  : orderItems.some(
-                      (oi) =>
-                        oi.menu_item_id === item.id &&
-                        oi.status === "pending" &&
-                        oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                    )
-                  ? "Max Limit Reached"
-                  : "Add to Order"}
-              </button>
+                    }
+                  >
+                    {!item.is_available
+                      ? "Unavailable"
+                      : orderItems.some(
+                          (oi) =>
+                            oi.menu_item_id === item.id &&
+                            oi.status === "pending" &&
+                            oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                        )
+                      ? "Max Limit Reached"
+                      : "Add to Order"}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -612,6 +725,8 @@ export default function CustomerOrderingPage({
         {["confirming", "pending", "preparing", "served"].map((stage) => (
           <div key={stage} className="mb-4">
             <h3 className="font-bold capitalize mb-2">{stage}</h3>
+
+            {/* Regular menu items */}
             {orderItems
               .filter((item) => item.status === stage)
               .map((item) => {
@@ -664,6 +779,68 @@ export default function CustomerOrderingPage({
                       </div>
                     ) : (
                       <span>x {item.quantity}</span>
+                    )}
+                  </div>
+                );
+              })}
+
+            {/* Add-ons */}
+            {orderAddOns
+              .filter((addOn) => addOn.status === stage)
+              .map((addOn) => {
+                const addOnItem = addOns.find((a) => a.id === addOn.addon_id);
+                return (
+                  <div
+                    key={addOn.id}
+                    className="flex flex-wrap justify-between items-center mb-2 bg-white p-2 rounded"
+                  >
+                    <span className="w-full sm:w-auto mb-2 sm:mb-0">
+                      {addOnItem?.name} (Add-on)
+                    </span>
+                    {stage === "confirming" || stage === "pending" ? (
+                      <div className="flex items-center">
+                        <button
+                          onClick={() =>
+                            updateOrderAddOnQuantity(
+                              addOn.id,
+                              addOn.quantity - 1
+                            )
+                          }
+                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="bg-white px-2 py-1">
+                          {addOn.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateOrderAddOnQuantity(
+                              addOn.id,
+                              addOn.quantity + 1
+                            )
+                          }
+                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => removeOrderAddOn(addOn.id)}
+                          className="ml-2 text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        {stage === "confirming" && (
+                          <button
+                            onClick={() => confirmOrderAddOn(addOn.id)}
+                            className="ml-2 bg-blue-500 text-white px-2 py-1 rounded"
+                          >
+                            Confirm
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span>x {addOn.quantity}</span>
                     )}
                   </div>
                 );
