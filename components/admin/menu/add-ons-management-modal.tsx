@@ -407,7 +407,7 @@ export default function AddOnsManagementModal() {
           <DialogHeader>
             <DialogTitle>Add-ons Management</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-[40rem]">
             <div>
               <Form {...form}>
                 <form
@@ -420,7 +420,7 @@ export default function AddOnsManagementModal() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Name</FormLabel>
-                        <FormControl>
+                        <FormControl className="">
                           <Input {...field} />
                         </FormControl>
                         <FormMessage />
@@ -479,68 +479,83 @@ export default function AddOnsManagementModal() {
                       }
                     />
                   </div>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Saving..." : "Add Add-on"}
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="bg-black hover:bg-gray-800 text-white py-5 px-5 rounded-xl w-full"
+                  >
+                    {isLoading ? "Saving..." : "Add"}
                   </Button>
                 </form>
               </Form>
             </div>
             <div className="space-y-4">
               <h3 className="font-semibold">Current Add-ons</h3>
-              {addOns.map((addOn) => (
-                <Card key={addOn.id}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{addOn.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="bg-white">
-                    <div className="space-y-4">
-                      <p className="text-sm text-gray-600">
-                        {addOn.description}
-                      </p>
-                      <p className="font-medium">₱{addOn.price.toFixed(2)}</p>
-                      {addOn.image_url && (
-                        <div className="relative h-32 w-full">
-                          <Image
-                            src={addOn.image_url}
-                            alt={addOn.name}
-                            fill
-                            className="object-cover rounded"
-                          />
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm ${
-                            addOn.is_available
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {addOn.is_available ? "Available" : "Not Available"}
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(addOn)}
-                        >
-                          <Pencil className="w-4 h-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(addOn.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              <div className="overflow-y-auto max-h-[60vh] w-[30rem]">
+                <table className=" divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase</th> tracking-wider">
+                        Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray</th>-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {addOns.map((addOn) => (
+                      <tr key={addOn.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {addOn.name}
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          ₱{addOn.price.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              addOn.is_available
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {addOn.is_available ? "Available" : "Not Available"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(addOn)}
+                            className="mr-2 bg-black hover:bg-gray-800 text-white hover:text-white"
+                          >
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(addOn.id)}
+                            className="bg-red-500 hover:bg-red-600 "
+                          >
+                            <Trash2 className="w-4 h-4 mr-2 " />
+                            Delete
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </DialogContent>
