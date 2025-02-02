@@ -48,7 +48,7 @@ export function Nav({ links, isCollapsed }: NavProps) {
                       }),
                       "h-9 w-9",
                       link.variant === "default" &&
-                        "dark:bg-muted dark:text-muted-foreground  dark:hover:text-white"
+                        " dark:text-muted-foreground  dark:hover:text-white"
                     )}
                   >
                     <link.icon className="h-4 w-4" />

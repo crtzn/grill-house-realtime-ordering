@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   ListOrdered,
+  LogOut,
   SquareMenu,
   TabletSmartphone,
 } from "lucide-react";
@@ -12,6 +13,9 @@ import Image from "next/image";
 import { useWindowWidth } from "@react-hook/window-size";
 import { getUserRole } from "@/app/utils/getUserRoles";
 import { filterLinks } from "@/app/utils/filterLink";
+import { Button } from "./ui/button";
+import { handleLogOut } from "@/app/utils/logOut";
+import { cn } from "@/lib/utils";
 
 export default function SideNavbar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -40,6 +44,16 @@ export default function SideNavbar() {
         />
       </div>
       <Nav isCollapsed={isMobile ? true : isCollapsed} links={filteredLinks} />
+      <button
+        onClick={handleLogOut}
+        className={cn(
+          "flex items-center justify-center w-full mt-4 p-2 rounded-lg",
+          "bg-red-500 text-white hover:bg-red-600 transition-colors"
+        )}
+      >
+        <LogOut className="h-4 w-4 mr-2" />
+        {!isMobile && "Logout"}
+      </button>
     </div>
   );
 }
