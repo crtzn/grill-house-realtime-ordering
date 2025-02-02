@@ -424,7 +424,7 @@ export default function CustomerOrderingPage({
         .map((addOn) => ({
           id: addOn.id,
           name: addOn.name,
-          description: `$${addOn.price.toFixed(2)}`,
+          description: `₱${addOn.price.toFixed(2)}`,
           is_available: addOn.is_available,
           image_url: "/api/placeholder/400/320", // Use a placeholder image for add-ons
         }));
