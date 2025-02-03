@@ -318,6 +318,26 @@ export default function TableManagement() {
 
         if (tableError) throw tableError;
 
+        const { error: deleteOrderItemsError } = await supabase
+          .from("order_items")
+          .delete()
+          .eq("order_id", currentOrder.id)
+          .neq("status", ["served", "preparing"]);
+
+        if (deleteOrderItemsError) {
+          throw deleteOrderItemsError;
+        }
+
+        const { error: deleteAddOnsError } = await supabase
+          .from("order_addons")
+          .delete()
+          .eq("order_id", currentOrder.id)
+          .neq("status", "served");
+
+        if (deleteAddOnsError) {
+          throw deleteAddOnsError;
+        }
+
         // Delete QR code
         const { error: qrDeleteError } = await supabase
           .from("qr_codes")

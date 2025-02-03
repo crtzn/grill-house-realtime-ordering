@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DigitalReceiptModal from "@/app/customer/[orderId]/DigitalReceipt";
-import { Category } from "@/app/types";
+import type { Category } from "@/app/types";
 import Swal from "sweetalert2";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,7 +27,7 @@ type AddOns = {
   name: string;
   price: number;
   is_available: boolean;
-  image_url: string; // Added this field
+  image_url: string;
 };
 
 type DisplayItem = {
@@ -177,7 +177,7 @@ export default function CustomerOrderingPage({
       supabase.removeChannel(menuItemsSubscription);
       supabase.removeChannel(orderAddOnsSubscription);
     };
-  }, [order.id]);
+  }, [order.id, order.packages.package_items]); // Added order.packages.package_items to dependencies
 
   const fetchOrderAddOns = async () => {
     const { data, error } = await supabase
@@ -416,7 +416,7 @@ export default function CustomerOrderingPage({
             .from("order_items")
             .delete()
             .eq("order_id", order.id)
-            .neq("status", ["served", "preparing"]);
+            .neq("status", "served");
 
           if (deleteOrderItemsError) {
             throw deleteOrderItemsError;
@@ -426,10 +426,21 @@ export default function CustomerOrderingPage({
             .from("order_addons")
             .delete()
             .eq("order_id", order.id)
-            .neq("status", "served");
+            .neq("status", ["preparing", "served"]);
 
           if (deleteAddOnsError) {
             throw deleteAddOnsError;
+          }
+
+          // Update the status of "preparing" add-ons to "served"
+          const { error: updateAddOnsStatusError } = await supabase
+            .from("order_addons")
+            .update({ status: "served" })
+            .eq("order_id", order.id)
+            .eq("status", "preparing");
+
+          if (updateAddOnsStatusError) {
+            throw updateAddOnsStatusError;
           }
 
           const { error: tableError } = await supabase
@@ -470,6 +481,8 @@ export default function CustomerOrderingPage({
           });
 
           setIsReceiptModalOpen(true);
+          // Disable further interactions
+          document.body.style.pointerEvents = "none";
         }
       }
     } catch (error) {
@@ -654,7 +667,7 @@ export default function CustomerOrderingPage({
             <div key={item.id} className="border p-4 rounded">
               <div className="relative w-full pt-[75%]">
                 <Image
-                  src={item.image_url}
+                  src={item.image_url || "/placeholder.svg"}
                   alt={item.name}
                   fill
                   className="absolute top-0 left-0 w-full h-full object-cover rounded"
@@ -894,13 +907,16 @@ export default function CustomerOrderingPage({
       {/* Digital Receipt Modal */}
       <DigitalReceiptModal
         isOpen={isReceiptModalOpen}
-        onClose={() => setIsReceiptModalOpen(false)}
+        onClose={() => {
+          setIsReceiptModalOpen(false);
+          document.body.style.pointerEvents = "auto";
+        }}
         tableNumber={order.tables.table_number}
         packageName={order.packages.name}
         customerCount={order.customer_count}
         orderItems={orderItems}
         menuItems={menuItems}
-        orderId={order.id} // Add this line
+        orderId={order.id}
       />
     </div>
   );

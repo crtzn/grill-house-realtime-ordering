@@ -5,8 +5,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import supabase from "@/lib/supabaseClient";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 interface DigitalReceiptModalProps {
   isOpen: boolean;
@@ -24,7 +26,7 @@ interface DigitalReceiptModalProps {
     name: string;
     description: string;
   }>;
-  orderId: string; // Add orderId prop
+  orderId: string;
 }
 
 const DigitalReceiptModal = ({
@@ -41,6 +43,7 @@ const DigitalReceiptModal = ({
   const [orderAddOns, setOrderAddOns] = useState<any[]>([]);
   const [addOns, setAddOns] = useState<any[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchPackagePrice = async () => {
@@ -117,8 +120,33 @@ const DigitalReceiptModal = ({
     }).format(amount);
   };
 
+  const downloadReceipt = () => {
+    if (receiptRef.current) {
+      // Use a small delay to ensure the DOM is fully rendered
+      setTimeout(() => {
+        html2canvas(receiptRef.current!).then((canvas) => {
+          const imgData = canvas.toDataURL("image/png");
+          const pdf = new jsPDF();
+          const imgProps = pdf.getImageProperties(imgData);
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+          pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+          pdf.save("receipt.pdf");
+        });
+      }, 500); // 500ms delay to ensure the content is fully rendered
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      // Trigger the download after the modal is fully opened
+      downloadReceipt();
+    }
+  }, [isOpen, downloadReceipt]); // Added downloadReceipt to dependencies
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent className="max-w-md mx-auto bg-white">
         <DialogHeader>
           <DialogTitle className="text-center text-xl font-bold">
@@ -126,11 +154,14 @@ const DigitalReceiptModal = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="font-mono text-sm whitespace-pre-wrap bg-white p-6 rounded-lg border border-gray-200">
+        <div
+          ref={receiptRef}
+          className="font-mono text-sm whitespace-pre-wrap bg-white p-6 rounded-lg border border-gray-200"
+        >
           <div className="text-center mb-4">
-            <h2 className="font-bold text-lg">SAMGYUP RESTAURANT</h2>
+            <h2 className="font-bold text-lg">Seoul Meat</h2>
             <p className="text-sm">123 Main Street, City</p>
-            <p className="text-sm">Tel: (123) 456-7890</p>
+            <p className="text-sm">0912345678910</p>
           </div>
 
           <div className="border-t border-b border-black py-2 my-4">
@@ -194,27 +225,11 @@ const DigitalReceiptModal = ({
               <span>{formatCurrency(totalPrice)}</span>
             </div>
           </div>
-
           <div className="text-center mt-6">
             <p>Thank you for dining with us!</p>
-            <p>Please come again.</p>
-            <p className="mt-4 text-xs">This is your digital receipt</p>
+            <p>Please show this receipt at the counter. Thank you!</p>
+            <p className="mt-4 text-xs">This is your digital receipt.</p>
           </div>
-        </div>
-
-        <div className="flex justify-between mt-4">
-          <Button
-            onClick={() => window.print()}
-            className="bg-green-500 hover:bg-green-600 text-white"
-          >
-            Print Receipt
-          </Button>
-          <Button
-            onClick={onClose}
-            className="bg-gray-500 hover:bg-gray-600 text-white"
-          >
-            Close
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
