@@ -555,7 +555,10 @@ export default function TableManagement() {
             setCurrentQRCode(null);
           }}
         >
-          <DialogContent className="bg-white">
+          <DialogContent
+            className="bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
             <DialogHeader>
               <DialogTitle>
                 Table {selectedTable.table_number} Details
@@ -607,22 +610,32 @@ export default function TableManagement() {
 
               <div className="flex gap-4 mt-4">
                 <Button
-                  onClick={handleTerminateTable}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTerminateTable();
+                  }}
                   className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
                 >
                   End Session
                 </Button>
                 <Button
-                  onClick={handleCancelOrder}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCancelOrder();
+                  }}
                   className="bg-gray-600 text-white hover:bg-gray-700 hover:text-white"
                 >
                   Cancel Order
                 </Button>
-                <Select onValueChange={handleUpgradePackage}>
+                <Select
+                  onValueChange={(value) => {
+                    handleUpgradePackage(value);
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Upgrade Package" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     {packages.map((pkg) => (
                       <SelectItem key={pkg.id} value={pkg.id}>
                         {pkg.name} - ₱{pkg.price.toFixed(2)}
