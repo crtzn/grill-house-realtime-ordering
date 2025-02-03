@@ -69,7 +69,7 @@ export default function SideNavbar() {
             href: "/admin/table",
           },
           {
-            title: "ACTIVITY LOG",
+            title: "TRANSACTION",
             label: "",
             icon: ScrollText,
             variant: "default",
