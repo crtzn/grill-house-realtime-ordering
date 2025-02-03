@@ -20,7 +20,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import supabase from "@/lib/supabaseClient";
 
 interface Package {
   id: number;
@@ -58,36 +65,107 @@ interface Order {
   };
 }
 
-export function ActivityLog() {
+export default function ActivityLog() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const supabase = createClientComponentClient();
+  const [dateFilter, setDateFilter] = useState("all");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
-  useEffect(() => {
-    // Initial fetch
-    fetchOrders();
+  const years = Array.from(
+    { length: 5 },
+    (_, i) => new Date().getFullYear() - i
+  );
 
-    // Set up real-time subscription
-    const channel = supabase
-      .channel("orders-channel")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "orders",
-        },
-        () => {
-          fetchOrders();
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const getDateFilter = () => {
+    const now = new Date();
+    switch (dateFilter) {
+      case "today": {
+        const startOfDay = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        ).toISOString();
+        return startOfDay;
+      }
+      case "current-month": {
+        const startOfMonth = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1
+        ).toISOString();
+        return startOfMonth;
+      }
+      case "current-year": {
+        const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
+        return startOfYear;
+      }
+      case "specific-year": {
+        const startOfYear = new Date(selectedYear, 0, 1).toISOString();
+        const endOfYear = new Date(selectedYear + 1, 0, 1).toISOString();
+        return { start: startOfYear, end: endOfYear };
+      }
+      case "specific-month": {
+        if (selectedMonth !== null && selectedYear) {
+          const startOfMonth = new Date(
+            selectedYear,
+            selectedMonth,
+            1
+          ).toISOString();
+          const endOfMonth = new Date(
+            selectedYear,
+            selectedMonth + 1,
+            0
+          ).toISOString();
+          return { start: startOfMonth, end: endOfMonth };
         }
-      )
-      .subscribe();
+        return null;
+      }
+      default:
+        return null;
+    }
+  };
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase]);
+  const handleRealtimeUpdate = (payload: any) => {
+    if (payload.eventType === "INSERT") {
+      // Fetch the new order with all its relations
+      fetchSingleOrder(payload.new.id).then((newOrder) => {
+        if (newOrder) {
+          setOrders((currentOrders) => [newOrder, ...currentOrders]);
+        }
+      });
+    } else if (payload.eventType === "UPDATE") {
+      fetchSingleOrder(payload.new.id).then((updatedOrder) => {
+        if (updatedOrder) {
+          setOrders((currentOrders) =>
+            currentOrders.map((order) =>
+              order.id === updatedOrder.id ? updatedOrder : order
+            )
+          );
+        }
+      });
+    } else if (payload.eventType === "DELETE") {
+      setOrders((currentOrders) =>
+        currentOrders.filter((order) => order.id !== payload.old.id)
+      );
+    }
+  };
 
-  async function fetchOrders() {
+  async function fetchSingleOrder(orderId: number) {
     const { data, error } = await supabase
       .from("orders")
       .select(
@@ -101,8 +179,45 @@ export function ActivityLog() {
         )
       `
       )
-      .order("created_at", { ascending: false })
-      .limit(10);
+      .eq("id", orderId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching single order:", error);
+      return null;
+    }
+    return data;
+  }
+
+  async function fetchOrders() {
+    let query = supabase
+      .from("orders")
+      .select(
+        `
+        *,
+        package:packages(*),
+        table:tables(table_number),
+        order_addons:order_addons(
+          *,
+          add_on:add_ons(*)
+        )
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    const dateFilterValue = getDateFilter();
+
+    if (dateFilterValue) {
+      if (typeof dateFilterValue === "string") {
+        query = query.gte("created_at", dateFilterValue);
+      } else if (dateFilterValue.start && dateFilterValue.end) {
+        query = query
+          .gte("created_at", dateFilterValue.start)
+          .lt("created_at", dateFilterValue.end);
+      }
+    }
+
+    const { data, error } = await query.limit(50);
 
     if (error) {
       console.error("Error fetching orders:", error);
@@ -110,6 +225,28 @@ export function ActivityLog() {
       setOrders(data || []);
     }
   }
+
+  useEffect(() => {
+    fetchOrders();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("orders-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+        },
+        handleRealtimeUpdate
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [dateFilter, selectedYear, selectedMonth]);
 
   const calculateTotal = (order: Order) => {
     const packageTotal = order.package.price * order.customer_count;
@@ -122,7 +259,87 @@ export function ActivityLog() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Activity Log</CardTitle>
+        <div className="flex flex-row items-center justify-between">
+          <CardTitle>Activity Log</CardTitle>
+          <div className="flex gap-2">
+            <Select
+              value={dateFilter}
+              onValueChange={(value) => {
+                setDateFilter(value);
+                if (value !== "specific-year" && value !== "specific-month") {
+                  setSelectedYear(new Date().getFullYear());
+                  setSelectedMonth(null);
+                }
+              }}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="current-month">Current Month</SelectItem>
+                <SelectItem value="current-year">Current Year</SelectItem>
+                <SelectItem value="specific-year">Specific Year</SelectItem>
+                <SelectItem value="specific-month">Specific Month</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {dateFilter === "specific-year" && (
+              <Select
+                value={selectedYear.toString()}
+                onValueChange={(value) => setSelectedYear(parseInt(value))}
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  {years.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {dateFilter === "specific-month" && (
+              <>
+                <Select
+                  value={selectedYear.toString()}
+                  onValueChange={(value) => setSelectedYear(parseInt(value))}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    {years.map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={selectedMonth?.toString() ?? ""}
+                  onValueChange={(value) => setSelectedMonth(parseInt(value))}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Select month" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    {months.map((month, index) => (
+                      <SelectItem key={index} value={index.toString()}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="outline-none">
         <Table>
@@ -154,7 +371,7 @@ export function ActivityLog() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {new Date(order.created_at).toLocaleTimeString()}
+                  {new Date(order.created_at).toLocaleString()}
                 </TableCell>
                 <TableCell>
                   <Dialog>

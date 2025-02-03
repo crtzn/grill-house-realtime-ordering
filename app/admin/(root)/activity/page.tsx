@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ActivityLog } from "@/components/admin/dashboard/activity-log";
+import ActivityLog from "@/components/admin/dashboard/activity-log";
 
 function page() {
   return (

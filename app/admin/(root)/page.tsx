@@ -6,7 +6,6 @@ import { AvailableTables } from "@/components/admin/dashboard/Available";
 import CustomerChart from "@/components/admin/dashboard/CustomerChart";
 import { TotalGross } from "@/components/admin/dashboard/TotalGross";
 import MostOrderedItems from "@/components/admin/dashboard/MostOrderedMenu";
-import { ActivityLog } from "@/components/admin/dashboard/activity-log";
 
 export default function DashboardPage() {
   return (

@@ -9,6 +9,7 @@ import {
   Bell,
   LogOut,
   ScrollText,
+  Settings,
 } from "lucide-react";
 import { Nav } from "@/components/nav";
 import Image from "next/image";
@@ -61,7 +62,7 @@ export default function SideNavbar() {
             href: "/admin/menu",
           },
           {
-            title: "DEVICES",
+            title: "TABLE",
             label: "",
             icon: TabletSmartphone,
             variant: "default",
@@ -73,6 +74,13 @@ export default function SideNavbar() {
             icon: ScrollText,
             variant: "default",
             href: "/admin/activity",
+          },
+          {
+            title: "SETTING",
+            label: "",
+            icon: Settings,
+            variant: "default",
+            href: "/admin/setting",
           },
         ]}
       />
