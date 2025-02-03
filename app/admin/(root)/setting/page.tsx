@@ -130,7 +130,12 @@ export default function AdminSettingsPage() {
       <div className="flex justify-end mb-4">
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingUser(null)}>Add Admin User</Button>
+            <Button
+              onClick={() => setEditingUser(null)}
+              className="bg-black hover:bg-gray-800 text-white"
+            >
+              Add Admin User
+            </Button>
           </DialogTrigger>
           <DialogContent className="bg-white">
             <DialogHeader>
@@ -178,7 +183,10 @@ export default function AdminSettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" className="w-full">
+              <Button
+                type="submit"
+                className="w-full bg-black hover:bg-gray-800 text-white"
+              >
                 {editingUser ? "Update" : "Create"}
               </Button>
             </form>
@@ -213,6 +221,7 @@ export default function AdminSettingsPage() {
                     setEditingUser(user);
                     setIsOpen(true);
                   }}
+                  className="border-blue-600 hover:drop-shadow-lg"
                 >
                   Edit
                 </Button>
@@ -220,6 +229,7 @@ export default function AdminSettingsPage() {
                   variant="destructive"
                   size="sm"
                   onClick={() => handleDelete(user.id)}
+                  className="border-red-600 hover:drop-shadow-lg"
                 >
                   Delete
                 </Button>

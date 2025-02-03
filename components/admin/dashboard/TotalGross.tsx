@@ -191,7 +191,7 @@ export function TotalGross() {
     <Card className="w-full m-h-screen shadow-md hover:shadow-xl transition-all duration-300 border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-2xl font-bold">Income Overview</CardTitle>
-        <Select
+        {/* <Select
           value={timeRange}
           onValueChange={(value) => setTimeRange(value)}
         >
@@ -203,7 +203,7 @@ export function TotalGross() {
             <SelectItem value="year">This Year</SelectItem>
             <SelectItem value="all">All Time</SelectItem>
           </SelectContent>
-        </Select>
+        </Select> */}
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
