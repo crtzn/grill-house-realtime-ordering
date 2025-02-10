@@ -2,11 +2,11 @@ import supabase from "@/lib/supabaseClient";
 import CustomerOrderingPage from "@/app/customer/[orderId]/CustomerOrderingPage";
 import { Metadata } from "next";
 
-type PageProps = {
+export interface PageProps {
   params: {
     orderId: string;
   };
-};
+}
 
 export default async function Page({ params }: PageProps) {
   const { data: order, error: orderError } = await supabase
