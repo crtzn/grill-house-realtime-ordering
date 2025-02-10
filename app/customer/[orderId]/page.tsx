@@ -1,26 +1,25 @@
 import supabase from "@/lib/supabaseClient";
-import { cookies } from "next/headers";
 import CustomerOrderingPage from "@/app/customer/[orderId]/CustomerOrderingPage";
+import { Metadata } from "next";
 
-export default async function Page({
-  params,
-}: {
-  params: { orderId: string };
-}) {
-  // Fetch order details
+type PageProps = {
+  params: {
+    orderId: string;
+  };
+};
+
+export default async function Page({ params }: PageProps) {
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .select(
-      `
-      *,
+      `*,
       tables (table_number),
       packages (
         *,
         package_items (
           menu_items (*)
         )
-      )
-    `
+      )`
     )
     .eq("id", params.orderId)
     .single();
@@ -35,4 +34,12 @@ export default async function Page({
   }
 
   return <CustomerOrderingPage initialOrder={order} />;
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  return {
+    title: `Order ${params.orderId}`,
+  };
 }
