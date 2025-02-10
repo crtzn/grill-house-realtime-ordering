@@ -1,5 +1,3 @@
-/** @format */
-
 "use client";
 
 import Link from "next/link";
@@ -47,9 +45,9 @@ export function Nav({ links, isCollapsed }: NavProps) {
                         size: "icon",
                       }),
                       "h-9 w-9",
-                      link.variant === "default" &&
-                        "dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white",
-                      "dark:bg-muted dark:text-muted-foreground  dark:hover:text-white"
+                      link.href === pathName
+                        ? "bg-black text-white hover:bg-black/90"
+                        : "dark:hover:bg-[#383838] dark:hover:text-white"
                     )}
                   >
                     <link.icon className="h-4 w-4" />
@@ -62,9 +60,7 @@ export function Nav({ links, isCollapsed }: NavProps) {
                 >
                   {link.title}
                   {link.label && (
-                    <span className="ml-auto text-muted-foreground">
-                      {link.label}
-                    </span>
+                    <span className="ml-auto text-white">{link.label}</span>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -77,9 +73,9 @@ export function Nav({ links, isCollapsed }: NavProps) {
                     variant: link.href === pathName ? "default" : "ghost",
                     size: "sm",
                   }),
-                  link.variant === "default" &&
-                    "dark:bg-muted dark:text-white dark:hover:bg-muted dark:hover:text-white",
-                  "dark:bg-muted dark:text-white hover:bg-[#383838]  hover:text-white",
+                  link.href === pathName
+                    ? "bg-black text-white hover:bg-black/90"
+                    : "dark:hover:bg-[#383838] dark:hover:text-white",
                   "justify-start"
                 )}
               >
@@ -89,9 +85,7 @@ export function Nav({ links, isCollapsed }: NavProps) {
                   <span
                     className={cn(
                       "ml-auto",
-                      link.variant === "default" &&
-                        "text-background dark:text-white",
-                      "text-background dark:text-white "
+                      link.href === pathName ? "text-white" : "text-white"
                     )}
                   >
                     {link.label}
