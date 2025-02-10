@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@tailwind utilities;
+
+/* globals.css */
+* {
+  outline: none !important;
+}
+
+*:focus {
+  outline: none !important;
+}
+
+/* If you still see outlines, you can add this stronger reset */
+*:focus-visible {
+  outline: none !important;
+}
