@@ -1,6 +1,6 @@
 import supabase from "@/lib/supabaseClient";
 import { cookies } from "next/headers";
-import CustomerOrderingPage from "./CustomerOrderingPage";
+import CustomerOrderingPage from "@/app/customer/[orderId]/CustomerOrderingPage";
 
 export default async function Page({
   params,
