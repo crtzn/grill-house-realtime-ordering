@@ -28,7 +28,7 @@ export default function SideNavbar() {
   });
 
   return (
-    <div className="flex flex-col items-center relative min-w-[80px] border-r px-3  pb-5 pt-10 ">
+    <div className="flex bg-gray-100 flex-col items-center relative min-w-[10rem] px-7  pb-5 pt-10 ">
       <Image
         src="/assets/Logo.png"
         width={80}
