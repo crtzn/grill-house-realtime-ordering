@@ -2,10 +2,12 @@ import supabase from "@/lib/supabaseClient";
 import CustomerOrderingPage from "@/app/customer/[orderId]/CustomerOrderingPage";
 import { Metadata } from "next";
 
-export interface PageProps {
-  params: {
-    orderId: string;
-  };
+interface OrderParams {
+  orderId: string;
+}
+
+interface PageProps {
+  params: OrderParams;
 }
 
 export default async function Page({ params }: PageProps) {
