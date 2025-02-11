@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import { useState, useEffect } from "react";
 import supabase from "@/lib/supabaseClient";
 import Image from "next/image";
@@ -9,6 +11,11 @@ import DigitalReceiptModal from "@/app/customer/[orderId]/DigitalReceipt";
 import type { Category } from "@/app/types";
 import Swal from "sweetalert2";
 import { useToast } from "@/hooks/use-toast";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { EffectCards } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/effect-cards";
+import { motion } from "framer-motion";
 
 type MenuItem = {
   id: string;
@@ -580,7 +587,7 @@ export default function CustomerOrderingPage({
   };
 
   const pendingItemsCount = orderItems.filter(
-    (item) => item.status === "pending"
+    (item) => item.status === "confirming"
   ).length;
 
   return (
@@ -661,100 +668,110 @@ export default function CustomerOrderingPage({
           </div>
         </div>
 
-        {/* Display Grid - Shows either menu items or add-ons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Carousel for Menu Items */}
+        <Swiper
+          effect={"cards"}
+          grabCursor={true}
+          modules={[EffectCards]}
+          className="mySwiper"
+        >
           {getDisplayItems().map((item) => (
-            <div key={item.id} className="border p-4 rounded">
-              <div className="relative w-full pt-[75%]">
-                <Image
-                  src={item.image_url || "/placeholder.svg"}
-                  alt={item.name}
-                  fill
-                  className="absolute top-0 left-0 w-full h-full object-cover rounded"
-                  unoptimized={true}
-                />
-              </div>
-              <div>
-                <h3 className="font-bold mt-2">{item.name}</h3>
-                <p className="text-sm text-gray-600">{item.description}</p>
-              </div>
-              {item.isAddOn ? (
-                <button
-                  onClick={() =>
-                    addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
-                  }
-                  className={`mt-4 px-4 py-2 rounded w-full ${
-                    !item.is_available
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-green-500 text-white hover:bg-green-600"
-                  }`}
-                  disabled={!item.is_available}
-                >
-                  {!item.is_available ? "Unavailable" : "Add to Order"}
-                </button>
-              ) : (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="bg-white px-2 py-1">
-                      {orderItems.find(
-                        (oi) =>
-                          oi.menu_item_id === item.id &&
-                          oi.status === "confirming"
-                      )?.quantity || 0}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
+            <SwiperSlide key={item.id}>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="border p-4 rounded-lg shadow-lg bg-white"
+              >
+                <div className="relative w-full pt-[75%]">
+                  <Image
+                    src={item.image_url || "/placeholder.svg"}
+                    alt={item.name}
+                    fill
+                    className="absolute top-0 left-0 w-full h-full object-cover rounded"
+                    unoptimized={true}
+                  />
+                </div>
+                <div>
+                  <h3 className="font-bold mt-2">{item.name}</h3>
+                  <p className="text-sm text-gray-600">{item.description}</p>
+                </div>
+                {item.isAddOn ? (
                   <button
-                    onClick={() => addToOrder(item)}
-                    className={`mt-2 px-4 py-2 rounded w-full ${
+                    onClick={() =>
+                      addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
+                    }
+                    className={`mt-4 px-4 py-2 rounded w-full ${
                       !item.is_available
                         ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-green-500 text-white hover:bg-green-600"
+                    }`}
+                    disabled={!item.is_available}
+                  >
+                    {!item.is_available ? "Unavailable" : "Add to Order"}
+                  </button>
+                ) : (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="bg-white px-2 py-1">
+                        {orderItems.find(
+                          (oi) =>
+                            oi.menu_item_id === item.id &&
+                            oi.status === "confirming"
+                        )?.quantity || 0}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => addToOrder(item)}
+                      className={`mt-2 px-4 py-2 rounded w-full ${
+                        !item.is_available
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : orderItems.some(
+                              (oi) =>
+                                oi.menu_item_id === item.id &&
+                                oi.status === "pending" &&
+                                oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                            )
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : "bg-green-500 text-white hover:bg-green-600"
+                      }`}
+                      disabled={
+                        !item.is_available ||
+                        orderItems.some(
+                          (oi) =>
+                            oi.menu_item_id === item.id &&
+                            oi.status === "pending" &&
+                            oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
+                        )
+                      }
+                    >
+                      {!item.is_available
+                        ? "Unavailable"
                         : orderItems.some(
                             (oi) =>
                               oi.menu_item_id === item.id &&
                               oi.status === "pending" &&
                               oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
                           )
-                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        : "bg-green-500 text-white hover:bg-green-600"
-                    }`}
-                    disabled={
-                      !item.is_available ||
-                      orderItems.some(
-                        (oi) =>
-                          oi.menu_item_id === item.id &&
-                          oi.status === "pending" &&
-                          oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                      )
-                    }
-                  >
-                    {!item.is_available
-                      ? "Unavailable"
-                      : orderItems.some(
-                          (oi) =>
-                            oi.menu_item_id === item.id &&
-                            oi.status === "pending" &&
-                            oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                        )
-                      ? "Max Limit Reached"
-                      : "Add to Order"}
-                  </button>
-                </div>
-              )}
-            </div>
+                        ? "Max Limit Reached"
+                        : "Add to Order"}
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </SwiperSlide>
           ))}
-        </div>
+        </Swiper>
       </div>
 
       {/* Cart Section */}
