@@ -5,18 +5,10 @@ import { Button } from "@/components/ui/button";
 import Header from "@/components/HeaderBox";
 import supabase from "@/lib/supabaseClient";
 import AddMenuItemForm from "@/components/admin/menu/add-menu-item-form";
-import AddPackageForm from "@/components/admin/menu/add-packages";
 import EditMenuItemForm from "@/components/admin/menu/edit-menu-item-form";
 import { MenuItemType, PackageType, PackageItem, Category } from "@/app/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  FilePenLine,
-  Pencil,
-  Trash2,
-  Loader2,
-  DatabaseZap,
-  DatabaseIcon,
-} from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,8 +19,6 @@ import {
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import Swal from "sweetalert2";
-import { set } from "react-hook-form";
-import PackageModal from "@/components/admin/menu/PackageModal";
 import EditCategoryForm from "@/components/admin/menu/edit-categories";
 import CategoryManagementModal from "@/components/admin/menu/categoryManagementModal";
 import PackageManagementModal from "@/components/admin/menu/packageManagmentModal";
@@ -42,9 +32,6 @@ export default function MenuPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<MenuItemType | null>(null);
   const [editingCategories, setEditingCategories] = useState<Category | null>(
-    null
-  );
-  const [editingPackages, setEditingPackages] = useState<PackageItem | null>(
     null
   );
   const [categories, setCategories] = useState<Category[]>([]);
@@ -142,37 +129,6 @@ export default function MenuPage() {
     }
   };
 
-  async function handleDeletePackages(pkg: string) {
-    const result = await Swal.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete it!",
-      confirmButtonColor: "#3085d6",
-      cancelButtonText: "Cancel",
-      cancelButtonColor: "#d33",
-    });
-    if (result.isConfirmed) {
-      const { error } = await supabase.from("packages").delete().eq("id", pkg);
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete package. Please try again.",
-          variant: "destructive",
-          duration: 3000,
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Package deleted successfully",
-          variant: "default",
-          duration: 2000,
-        });
-      }
-    }
-  }
-
   async function handleDeleteMenuItem(id: string) {
     const result = await Swal.fire({
       title: "Are you sure?",
@@ -255,65 +211,6 @@ export default function MenuPage() {
     }
   }
 
-  const handleAddCategory = async (newCategory: Omit<Category, "id">) => {
-    try {
-      const { data, error } = await supabase
-        .from("categories")
-        .insert([newCategory])
-        .select();
-      if (error) throw error;
-      if (data) {
-        setCategories([...categories, data[0]]);
-        toast({
-          title: "Success",
-          description: "Category added successfully",
-          variant: "default",
-          duration: 2000,
-        });
-      }
-    } catch (error) {
-      console.error("Error adding category:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add category. Please try again.",
-        variant: "destructive",
-        duration: 2000,
-      });
-    }
-  };
-
-  async function handleRemovePackage(id: string) {
-    const result = await Swal.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete it!",
-      confirmButtonColor: "#3085d6",
-      cancelButtonText: "Cancel",
-      cancelButtonColor: "#d33",
-    });
-
-    if (result.isConfirmed) {
-      const { error } = await supabase.from("packages").delete().eq("id", id);
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete package. Please try again.",
-          variant: "destructive",
-          duration: 2000,
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Package deleted successfully",
-          variant: "default",
-          duration: 2000,
-        });
-      }
-    }
-  }
-
   const handleEditCategory = (category: Category) => {
     setEditingCategories(category);
   };
@@ -359,7 +256,7 @@ export default function MenuPage() {
   const handleDeleteCategory = async (id: string) => {
     try {
       // Check if any menu items use this category
-      const { data: menuItems, error: menuError } = await supabase
+      const { data: menuItems } = await supabase
         .from("menu_items")
         .select("id")
         .eq("category_id", id);
@@ -407,7 +304,7 @@ export default function MenuPage() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-8">
           <div>
-            <Header title="Menu Management" />
+            <h1 className="text-2xl font-bold mb-4">Menu Management</h1>
             <p className="mt-2 text-gray-600">
               Manage your restaurant's menu items and packages
             </p>
