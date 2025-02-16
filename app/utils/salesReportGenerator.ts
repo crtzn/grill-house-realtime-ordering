@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { format } from "date-fns";
 import supabase from "@/lib/supabaseClient";
+import { startOfDay, endOfDay, format } from "date-fns";
 
 interface Package {
   price: number;
@@ -33,6 +33,8 @@ interface SalesReportData {
   year: number;
   month?: number;
   day?: number;
+  customStartDate?: Date; // Add this line
+  customEndDate?: Date; // Add this line
 }
 
 const generateSalesReport = async (data: SalesReportData) => {
@@ -46,16 +48,28 @@ const generateSalesReport = async (data: SalesReportData) => {
   // Report Period
   doc.setFontSize(12);
   let periodText = "";
-  if (data.day) {
+
+  // Handle custom date range
+  if (data.customStartDate && data.customEndDate) {
+    // Use custom date range for the period text
+    periodText = `${format(data.customStartDate, "MMM d, yyyy")} - ${format(
+      data.customEndDate,
+      "MMM d, yyyy"
+    )}`;
+  } else if (data.day) {
+    // For daily report
     periodText = format(
-      new Date(data.year, data.month! - 1, data.day),
+      new Date(data.year!, data.month! - 1, data.day),
       "MMMM dd, yyyy"
     );
   } else if (data.month) {
-    periodText = format(new Date(data.year, data.month - 1), "MMMM yyyy");
+    // For monthly report
+    periodText = format(new Date(data.year!, data.month - 1), "MMMM yyyy");
   } else {
+    // For yearly report
     periodText = `Year ${data.year}`;
   }
+
   doc.text(`Period: ${periodText}`, 20, 30);
 
   // Summary Section
@@ -203,7 +217,6 @@ const calculateAddonsTotal = (addons: OrderAddon[]) => {
     }, 0) || 0
   );
 };
-
 const formatCurrency = (amount: number) => {
   return `P${new Intl.NumberFormat("en-PH", {
     style: "decimal",
@@ -213,33 +226,38 @@ const formatCurrency = (amount: number) => {
 };
 
 export const handleDownloadPDF = async (
-  year: number,
+  year?: number,
   month?: number,
-  day?: number
+  day?: number,
+  customStartDate?: Date,
+  customEndDate?: Date
 ) => {
   try {
     let startDate: string;
     let endDate: string;
 
-    if (day) {
+    if (customStartDate && customEndDate) {
+      // For custom date range
+      startDate = startOfDay(customStartDate).toISOString();
+      endDate = endOfDay(customEndDate).toISOString();
+    } else if (day) {
       // For daily report
-      startDate = `${year}-${month!.toString().padStart(2, "0")}-${day
-        .toString()
-        .padStart(2, "0")}`;
-      const nextDay = new Date(year, month! - 1, day + 1);
-      endDate = format(nextDay, "yyyy-MM-dd");
+      if (!month) throw new Error("Month is required for daily reports.");
+      startDate = startOfDay(new Date(year!, month - 1, day)).toISOString();
+      endDate = endOfDay(new Date(year!, month - 1, day)).toISOString();
     } else if (month) {
       // For monthly report
-      startDate = `${year}-${month.toString().padStart(2, "0")}-01`;
-      endDate =
-        month === 12
-          ? `${year + 1}-01-01`
-          : `${year}-${(month + 1).toString().padStart(2, "0")}-01`;
-    } else {
+      startDate = startOfDay(new Date(year!, month - 1, 1)).toISOString();
+      endDate = endOfDay(new Date(year!, month, 0)).toISOString();
+    } else if (year) {
       // For yearly report
-      startDate = `${year}-01-01`;
-      endDate = `${year + 1}-01-01`;
+      startDate = startOfDay(new Date(year, 0, 1)).toISOString();
+      endDate = endOfDay(new Date(year, 11, 31)).toISOString();
+    } else {
+      throw new Error("Invalid date parameters");
     }
+
+    console.log("Fetching data for date range:", { startDate, endDate });
 
     const { data: ordersData, error } = await supabase
       .from("orders")
@@ -267,31 +285,44 @@ export const handleDownloadPDF = async (
       )
       .eq("payment_status", "paid")
       .gte("created_at", startDate)
-      .lt("created_at", endDate)
+      .lte("created_at", endDate)
       .order("created_at");
 
     if (error) throw error;
 
+    console.log("Orders data fetched:", ordersData);
+
     const doc = await generateSalesReport({
       orders: ordersData as unknown as OrderWithPackage[],
-      year,
+      year: year || new Date().getFullYear(),
       month,
       day,
+      customStartDate,
+      customEndDate,
     });
 
     // Generate filename based on report type
-    const filename = day
-      ? `sales-report-${year}-${month!.toString().padStart(2, "0")}-${day
-          .toString()
-          .padStart(2, "0")}.pdf`
-      : month
-      ? `sales-report-${year}-${month.toString().padStart(2, "0")}.pdf`
-      : `sales-report-${year}.pdf`;
+    let filename;
+    if (customStartDate && customEndDate) {
+      filename = `sales-report-${format(
+        customStartDate,
+        "yyyy-MM-dd"
+      )}-to-${format(customEndDate, "yyyy-MM-dd")}.pdf`;
+    } else if (day) {
+      filename = `sales-report-${year}-${month!
+        .toString()
+        .padStart(2, "0")}-${day.toString().padStart(2, "0")}.pdf`;
+    } else if (month) {
+      filename = `sales-report-${year}-${month
+        .toString()
+        .padStart(2, "0")}.pdf`;
+    } else {
+      filename = `sales-report-${year}.pdf`;
+    }
 
     doc.save(filename);
   } catch (error) {
     console.error("Error generating sales report:", error);
   }
 };
-
 export default generateSalesReport;

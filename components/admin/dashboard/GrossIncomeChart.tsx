@@ -36,6 +36,7 @@ import {
 } from "recharts";
 import supabase from "@/lib/supabaseClient";
 import { handleDownloadPDF } from "@/app/utils/salesReportGenerator";
+import { DateRange } from "react-day-picker"; // Import DateRange from react-day-picker
 
 interface Package {
   price: number;
@@ -91,6 +92,14 @@ const GrossIncomeChart: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<number>(
     new Date().getMonth() + 1
   );
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [isCustomRange, setIsCustomRange] = useState(false);
 
   const chartConfig: ChartConfig = {
     income: {
@@ -193,26 +202,34 @@ const GrossIncomeChart: React.FC = () => {
     try {
       let startDate: Date, endDate: Date;
 
-      switch (timeRange) {
-        case "daily":
-          startDate = startOfDay(selectedDate);
-          endDate = endOfDay(selectedDate);
-          break;
-        case "weekly":
-          const weekStart = new Date(selectedDate);
-          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-          startDate = startOfDay(weekStart);
-          endDate = endOfDay(addDays(weekStart, 6));
-          break;
-        case "monthly":
-          startDate = startOfMonth(new Date(currentYear, selectedMonth - 1));
-          endDate = endOfMonth(new Date(currentYear, selectedMonth - 1));
-          break;
-        case "yearly":
-          startDate = new Date(currentYear, 0, 1);
-          endDate = new Date(currentYear, 11, 31, 23, 59, 59);
-          break;
+      if (isCustomRange && dateRange.from && dateRange.to) {
+        // For custom date range
+        startDate = startOfDay(dateRange.from);
+        endDate = endOfDay(dateRange.to);
+      } else {
+        switch (timeRange) {
+          case "daily":
+            startDate = startOfDay(selectedDate);
+            endDate = endOfDay(selectedDate);
+            break;
+          case "weekly":
+            const weekStart = new Date(selectedDate);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            startDate = startOfDay(weekStart);
+            endDate = endOfDay(addDays(weekStart, 6));
+            break;
+          case "monthly":
+            startDate = startOfMonth(new Date(currentYear, selectedMonth - 1));
+            endDate = endOfMonth(new Date(currentYear, selectedMonth - 1));
+            break;
+          case "yearly":
+            startDate = new Date(currentYear, 0, 1);
+            endDate = new Date(currentYear, 11, 31, 23, 59, 59);
+            break;
+        }
       }
+
+      console.log("Fetching data for date range:", { startDate, endDate });
 
       const { data: ordersData, error } = await supabase
         .from("orders")
@@ -241,6 +258,8 @@ const GrossIncomeChart: React.FC = () => {
 
       if (error) throw error;
 
+      console.log("Orders data fetched:", ordersData);
+
       const incomeMap = aggregateData(
         ordersData as unknown as OrderWithPackage[],
         timeRange
@@ -254,6 +273,11 @@ const GrossIncomeChart: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (isCustomRange && dateRange.from && dateRange.to) {
+      fetchIncomeData();
+    }
+  }, [dateRange, isCustomRange]);
   useEffect(() => {
     fetchIncomeData();
 
@@ -309,7 +333,15 @@ const GrossIncomeChart: React.FC = () => {
   };
 
   const handleDownloadReport = () => {
-    if (timeRange === "daily") {
+    if (isCustomRange && dateRange.from && dateRange.to) {
+      handleDownloadPDF(
+        undefined,
+        undefined,
+        undefined,
+        dateRange.from,
+        dateRange.to
+      );
+    } else if (timeRange === "daily") {
       const year = selectedDate.getFullYear();
       const month = selectedDate.getMonth() + 1;
       const day = selectedDate.getDate();
@@ -322,6 +354,13 @@ const GrossIncomeChart: React.FC = () => {
   };
 
   const getDateRangeText = () => {
+    if (isCustomRange && dateRange.from && dateRange.to) {
+      return `${format(dateRange.from, "MMM d, yyyy")} - ${format(
+        dateRange.to,
+        "MMM d, yyyy"
+      )}`;
+    }
+
     switch (timeRange) {
       case "daily":
         return format(selectedDate, "MMMM d, yyyy");
@@ -350,17 +389,23 @@ const GrossIncomeChart: React.FC = () => {
           <div className="flex justify-evenly items-center align-middle mt-2">
             <div className="">
               <Select
-                value={timeRange}
-                onValueChange={(value) =>
-                  setTimeRange(
-                    value as "daily" | "weekly" | "monthly" | "yearly"
-                  )
-                }
+                value={isCustomRange ? "custom" : timeRange}
+                onValueChange={(value) => {
+                  if (value === "custom") {
+                    setIsCustomRange(true);
+                  } else {
+                    setIsCustomRange(false);
+                    setTimeRange(
+                      value as "daily" | "weekly" | "monthly" | "yearly"
+                    );
+                  }
+                }}
               >
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Select range" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
+                  <SelectItem value="custom">Custom Range</SelectItem>
                   <SelectItem value="daily">Daily</SelectItem>
                   <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
@@ -369,7 +414,42 @@ const GrossIncomeChart: React.FC = () => {
               </Select>
             </div>
             <div>
-              {timeRange === "daily" && (
+              {isCustomRange ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline">
+                      {dateRange.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "LLL dd, y")} -{" "}
+                            {format(dateRange.to, "LLL dd, y")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "LLL dd, y")
+                        )
+                      ) : (
+                        "Pick a date"
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange.from}
+                      selected={dateRange}
+                      onSelect={(range: DateRange | undefined) => {
+                        if (range) {
+                          setDateRange({ from: range.from, to: range.to });
+                        } else {
+                          setDateRange({ from: undefined, to: undefined });
+                        }
+                      }}
+                      numberOfMonths={2}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : timeRange === "daily" ? (
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline">
@@ -387,8 +467,7 @@ const GrossIncomeChart: React.FC = () => {
                     />
                   </PopoverContent>
                 </Popover>
-              )}
-              {timeRange === "monthly" && (
+              ) : timeRange === "monthly" ? (
                 <Select
                   value={selectedMonth.toString()}
                   onValueChange={(value) => setSelectedMonth(parseInt(value))}
@@ -404,7 +483,7 @@ const GrossIncomeChart: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -415,20 +494,24 @@ const GrossIncomeChart: React.FC = () => {
           >
             Download PDF
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => handleDateChange("prev")}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => handleDateChange("next")}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {!isCustomRange && (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => handleDateChange("prev")}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => handleDateChange("next")}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </CardHeader>
       <CardContent>
