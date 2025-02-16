@@ -28,7 +28,7 @@ export default function SideNavbar() {
   });
 
   return (
-    <div className="flex bg-gray-100 flex-col items-center relative min-w-[10rem] px-7  pb-5 pt-10 ">
+    <div className="flex bg-[#ffffff] flex-col items-center relative min-w-[10rem] px-7  pb-5 pt-10 ">
       <Image
         src="/assets/Logo.png"
         width={80}
@@ -69,7 +69,7 @@ export default function SideNavbar() {
             href: "/admin/table",
           },
           {
-            title: "TRANSACTION",
+            title: "ACTIVITY",
             label: "",
             icon: ScrollText,
             variant: "default",

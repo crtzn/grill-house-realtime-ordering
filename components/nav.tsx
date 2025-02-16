@@ -74,8 +74,8 @@ export function Nav({ links, isCollapsed }: NavProps) {
                     size: "sm",
                   }),
                   link.href === pathName
-                    ? "bg-black text-white hover:bg-black/90"
-                    : "dark:hover:bg-[#383838] dark:hover:text-white",
+                    ? "bg-[#f2f5f8] text-black hover:bg-[#f2f5f8] hover:text-black"
+                    : "dark:hover:bg-[#f2f5f8] dark:hover:text-black",
                   "justify-start"
                 )}
               >
