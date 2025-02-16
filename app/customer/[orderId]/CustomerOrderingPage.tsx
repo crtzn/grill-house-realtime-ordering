@@ -616,21 +616,18 @@ export default function CustomerOrderingPage({
         </h1>
 
         {/* Categories Scrollable Container */}
-        <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2">
-          <div className="inline-flex space-x-2">
+        <div className="mb-4 overflow-x-auto whitespace-nowrap pb-2 scrollbar-hide">
+          <div className="inline-flex space-x-2 p-1">
             <Button
               onClick={() => {
                 setSelectedCategory(null);
                 setShowingAddOns(false);
               }}
               className={`${
-                selectedCategory === null &&
-                !showingAddOns &&
-                selectedCategory === null &&
-                !showingAddOns
+                selectedCategory === null && !showingAddOns
                   ? "bg-[#383838] text-white"
                   : "bg-[#242424] text-white"
-              } px-4 py-2 hover:bg-[#383838] hover:text-white`}
+              } px-4 py-2 hover:bg-[#383838] hover:text-white text-sm md:text-base flex-shrink-0`}
             >
               All
             </Button>
@@ -647,7 +644,7 @@ export default function CustomerOrderingPage({
                   selectedCategory === category.id
                     ? "bg-[#383838] text-white"
                     : "bg-[#242424] text-white"
-                } px-4 py-2 hover:bg-[#383838] hover:text-white`}
+                } px-4 py-2 hover:bg-[#383838] hover:text-white text-sm md:text-base flex-shrink-0`}
               >
                 {category.name}
               </Button>
@@ -661,264 +658,334 @@ export default function CustomerOrderingPage({
                 showingAddOns
                   ? "bg-[#383838] text-white"
                   : "bg-[#242424] text-white"
-              } px-4 py-2 hover:bg-[#383838] hover:text-white`}
+              } px-4 py-2 hover:bg-[#383838] hover:text-white text-sm md:text-base flex-shrink-0`}
             >
               Add-ons
             </Button>
           </div>
         </div>
 
-        {/* Carousel for Menu Items */}
-        <Swiper
-          effect={"cards"}
-          grabCursor={true}
-          modules={[EffectCards]}
-          className="mySwiper"
-        >
-          {getDisplayItems().map((item) => (
-            <SwiperSlide key={item.id}>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="border p-4 rounded-lg shadow-lg bg-white"
-              >
-                <div className="relative w-full pt-[75%]">
-                  <Image
-                    src={item.image_url || "/placeholder.svg"}
-                    alt={item.name}
-                    fill
-                    className="absolute top-0 left-0 w-full h-full object-cover rounded"
-                    unoptimized={true}
-                  />
-                </div>
-                <div>
-                  <h3 className="font-bold mt-2">{item.name}</h3>
-                  <p className="text-sm text-gray-600">{item.description}</p>
-                </div>
-                {item.isAddOn ? (
-                  <button
-                    onClick={() =>
-                      addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
-                    }
-                    className={`mt-4 px-4 py-2 rounded w-full ${
-                      !item.is_available
-                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        : "bg-green-500 text-white hover:bg-green-600"
-                    }`}
-                    disabled={!item.is_available}
-                  >
-                    {!item.is_available ? "Unavailable" : "Add to Order"}
-                  </button>
-                ) : (
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between">
-                      <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="bg-white px-2 py-1">
-                        {orderItems.find(
-                          (oi) =>
-                            oi.menu_item_id === item.id &&
-                            oi.status === "confirming"
-                        )?.quantity || 0}
-                      </span>
-                      <button
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
+        {/* Responsive Swiper */}
+        <div className="w-full max-w-md mx-auto md:max-w-lg lg:max-w-xl">
+          <Swiper
+            effect={"cards"}
+            grabCursor={true}
+            modules={[EffectCards]}
+            className="mySwiper h-[450px] md:h-[500px]"
+          >
+            {getDisplayItems().map((item) => (
+              <SwiperSlide key={item.id}>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  className="border p-4 rounded-lg shadow-lg bg-white h-full"
+                >
+                  <div className="relative w-full pt-[75%]">
+                    <Image
+                      src={item.image_url || "/placeholder.svg"}
+                      alt={item.name}
+                      fill
+                      className="absolute top-0 left-0 w-full h-full object-cover rounded"
+                      unoptimized={true}
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <h3 className="font-bold text-lg md:text-xl">
+                      {item.name}
+                    </h3>
+                    <p className="text-sm md:text-base text-gray-600">
+                      {item.description}
+                    </p>
+                  </div>
+                  {item.isAddOn ? (
                     <button
-                      onClick={() => addToOrder(item)}
-                      className={`mt-2 px-4 py-2 rounded w-full ${
+                      onClick={() =>
+                        addAddOnToOrder(addOns.find((a) => a.id === item.id)!)
+                      }
+                      className={`mt-4 px-4 py-2 rounded w-full ${
                         !item.is_available
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                          : orderItems.some(
-                              (oi) =>
-                                oi.menu_item_id === item.id &&
-                                oi.status === "pending" &&
-                                oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                            )
                           ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                           : "bg-green-500 text-white hover:bg-green-600"
                       }`}
-                      disabled={
-                        !item.is_available ||
-                        orderItems.some(
-                          (oi) =>
-                            oi.menu_item_id === item.id &&
-                            oi.status === "pending" &&
-                            oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                        )
-                      }
+                      disabled={!item.is_available}
                     >
-                      {!item.is_available
-                        ? "Unavailable"
-                        : orderItems.some(
+                      {!item.is_available ? "Unavailable" : "Add to Order"}
+                    </button>
+                  ) : (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="bg-white px-4 py-1">
+                          {orderItems.find(
                             (oi) =>
                               oi.menu_item_id === item.id &&
-                              oi.status === "pending" &&
-                              oi.quantity >= MAX_ITEMS_PER_MENU_ITEM
-                          )
-                        ? "Max Limit Reached"
-                        : "Add to Order"}
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            </SwiperSlide>
-          ))}
-        </Swiper>
+                              oi.status === "confirming"
+                          )?.quantity || 0}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() =>
+                          addToOrder(menuItems.find((mi) => mi.id === item.id)!)
+                        }
+                        className={`mt-2 px-4 py-2 rounded w-full ${
+                          !item.is_available
+                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            : "bg-green-500 text-white hover:bg-green-600"
+                        }`}
+                        disabled={!item.is_available}
+                      >
+                        {!item.is_available ? "Unavailable" : "Add to Order"}
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </div>
       </div>
 
       {/* Cart Section */}
       <div
-        className={`w-full md:w-1/4 bg-gray-100 p-4 overflow-y-auto fixed md:static inset-0 z-40 transform transition-transform duration-300 ease-in-out ${
+        className={`w-full md:w-1/4 bg-gray-100 p-4 fixed md:static inset-0 z-40 transform transition-transform duration-300 ease-in-out ${
           showCart ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        <button
-          onClick={() => setShowCart(false)}
-          className="md:hidden absolute top-4 right-4 text-gray-600"
-        >
-          ✕
-        </button>
+        <div className="h-full flex flex-col">
+          <button
+            onClick={() => setShowCart(false)}
+            className="md:hidden absolute top-4 right-4 text-gray-600"
+          >
+            ✕
+          </button>
 
-        <h2 className="text-xl font-bold mb-4">Your Order</h2>
-        {["confirming", "pending", "preparing", "served"].map((stage) => (
-          <div key={stage} className="mb-4">
-            <h3 className="font-bold capitalize mb-2">{stage}</h3>
+          <h2 className="text-xl font-bold mb-4">Your Order</h2>
 
-            {/* Regular menu items */}
-            {orderItems
-              .filter((item) => item.status === stage)
-              .map((item) => {
-                const menuItem = menuItems.find(
-                  (mi) => mi.id === item.menu_item_id
-                );
-                return (
-                  <div
-                    key={item.id}
-                    className="flex flex-wrap justify-between items-center mb-2 bg-white p-2 rounded"
-                  >
-                    <span className="w-full sm:w-auto mb-2 sm:mb-0">
-                      {menuItem?.name}
-                    </span>
-                    {stage === "confirming" || stage === "pending" ? (
-                      <div className="flex items-center">
-                        <button
-                          onClick={() =>
-                            updateOrderItemQuantity(item.id, item.quantity - 1)
-                          }
-                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="bg-white px-2 py-1">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            updateOrderItemQuantity(item.id, item.quantity + 1)
-                          }
-                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => removeOrderItem(item.id)}
-                          className="ml-2 text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        {stage === "confirming" && (
-                          <button
-                            onClick={() => confirmOrderItem(item.id)}
-                            className="ml-2 bg-blue-500 text-white px-2 py-1 rounded"
+          {/* Scrollable Order Sections */}
+          <div className="flex-1 overflow-y-auto">
+            {["confirming", "pending", "preparing"].map((stage) => {
+              const items = [
+                ...orderItems.filter((item) => item.status === stage),
+                ...orderAddOns.filter((addOn) => addOn.status === stage),
+              ];
+
+              return items.length > 0 ? (
+                <div key={stage} className="mb-4">
+                  <h3 className="font-bold capitalize mb-2 sticky top-0 bg-gray-100 py-2 z-10">
+                    {stage}
+                  </h3>
+                  <div className="space-y-2">
+                    {/* Regular menu items */}
+                    {orderItems
+                      .filter((item) => item.status === stage)
+                      .map((item) => {
+                        const menuItem = menuItems.find(
+                          (mi) => mi.id === item.menu_item_id
+                        );
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex flex-wrap justify-between items-center bg-white p-2 rounded shadow-sm"
                           >
-                            Confirm
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <span>x {item.quantity}</span>
-                    )}
-                  </div>
-                );
-              })}
+                            <span className="w-full sm:w-auto text-sm md:text-base mb-2 sm:mb-0">
+                              {menuItem?.name}
+                            </span>
+                            {stage === "confirming" ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="flex items-center">
+                                  <button
+                                    onClick={() =>
+                                      updateOrderItemQuantity(
+                                        item.id,
+                                        item.quantity - 1
+                                      )
+                                    }
+                                    className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                                  >
+                                    <Minus className="w-4 h-4" />
+                                  </button>
+                                  <span className="bg-white px-3 py-1">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      updateOrderItemQuantity(
+                                        item.id,
+                                        item.quantity + 1
+                                      )
+                                    }
+                                    className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => removeOrderItem(item.id)}
+                                  className="text-red-500"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => confirmOrderItem(item.id)}
+                                  className="bg-blue-500 text-white px-2 py-1 rounded text-sm"
+                                >
+                                  Confirm
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-sm">x{item.quantity}</span>
+                            )}
+                          </div>
+                        );
+                      })}
 
-            {/* Add-ons */}
-            {orderAddOns
-              .filter((addOn) => addOn.status === stage)
-              .map((addOn) => {
-                const addOnItem = addOns.find((a) => a.id === addOn.addon_id);
-                return (
-                  <div
-                    key={addOn.id}
-                    className="flex flex-wrap justify-between items-center mb-2 bg-white p-2 rounded"
-                  >
-                    <span className="w-full sm:w-auto mb-2 sm:mb-0">
-                      {addOnItem?.name} (Add-on)
-                    </span>
-                    {stage === "confirming" || stage === "pending" ? (
-                      <div className="flex items-center">
-                        <button
-                          onClick={() =>
-                            updateOrderAddOnQuantity(
-                              addOn.id,
-                              addOn.quantity - 1
-                            )
-                          }
-                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="bg-white px-2 py-1">
-                          {addOn.quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            updateOrderAddOnQuantity(
-                              addOn.id,
-                              addOn.quantity + 1
-                            )
-                          }
-                          className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => removeOrderAddOn(addOn.id)}
-                          className="ml-2 text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        {stage === "confirming" && (
-                          <button
-                            onClick={() => confirmOrderAddOn(addOn.id)}
-                            className="ml-2 bg-blue-500 text-white px-2 py-1 rounded"
+                    {/* Add-ons */}
+                    {orderAddOns
+                      .filter((addOn) => addOn.status === stage)
+                      .map((addOn) => {
+                        const addOnItem = addOns.find(
+                          (a) => a.id === addOn.addon_id
+                        );
+                        return (
+                          <div
+                            key={addOn.id}
+                            className="flex flex-wrap justify-between items-center bg-white p-2 rounded shadow-sm"
                           >
-                            Confirm
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <span>x {addOn.quantity}</span>
-                    )}
+                            <span className="w-full sm:w-auto text-sm md:text-base mb-2 sm:mb-0">
+                              {addOnItem?.name} (Add-on)
+                            </span>
+                            {stage === "confirming" ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="flex items-center">
+                                  <button
+                                    onClick={() =>
+                                      updateOrderAddOnQuantity(
+                                        addOn.id,
+                                        addOn.quantity - 1
+                                      )
+                                    }
+                                    className="bg-gray-200 text-gray-700 px-2 py-1 rounded-l"
+                                  >
+                                    <Minus className="w-4 h-4" />
+                                  </button>
+                                  <span className="bg-white px-3 py-1">
+                                    {addOn.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      updateOrderAddOnQuantity(
+                                        addOn.id,
+                                        addOn.quantity + 1
+                                      )
+                                    }
+                                    className="bg-gray-200 text-gray-700 px-2 py-1 rounded-r"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => removeOrderAddOn(addOn.id)}
+                                  className="text-red-500"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => confirmOrderAddOn(addOn.id)}
+                                  className="bg-blue-500 text-white px-2 py-1 rounded text-sm"
+                                >
+                                  Confirm
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-sm">x{addOn.quantity}</span>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
-                );
-              })}
+                </div>
+              ) : null;
+            })}
+            {/* Separate Served Section with Fixed Height */}
+            {(() => {
+              const servedItems = [
+                ...orderItems.filter((item) => item.status === "served"),
+                ...orderAddOns.filter((addOn) => addOn.status === "served"),
+              ];
+
+              return servedItems.length > 0 ? (
+                <div className="mb-4">
+                  <h3 className="font-bold capitalize mb-2 sticky top-0 bg-gray-100 py-2 z-10">
+                    Served
+                  </h3>
+                  <div className="max-h-48 overflow-y-auto rounded-lg bg-white shadow-inner">
+                    <div className="space-y-2 p-2">
+                      {/* Served menu items */}
+                      {orderItems
+                        .filter((item) => item.status === "served")
+                        .map((item) => {
+                          const menuItem = menuItems.find(
+                            (mi) => mi.id === item.menu_item_id
+                          );
+                          return (
+                            <div
+                              key={item.id}
+                              className="flex justify-between items-center bg-gray-50 p-2 rounded"
+                            >
+                              <span className="text-sm md:text-base">
+                                {menuItem?.name}
+                              </span>
+                              <span className="text-sm">x{item.quantity}</span>
+                            </div>
+                          );
+                        })}
+
+                      {/* Served add-ons */}
+                      {orderAddOns
+                        .filter((addOn) => addOn.status === "served")
+                        .map((addOn) => {
+                          const addOnItem = addOns.find(
+                            (a) => a.id === addOn.addon_id
+                          );
+                          return (
+                            <div
+                              key={addOn.id}
+                              className="flex justify-between items-center bg-gray-50 p-2 rounded"
+                            >
+                              <span className="text-sm md:text-base">
+                                {addOnItem?.name} (Add-on)
+                              </span>
+                              <span className="text-sm">x{addOn.quantity}</span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              ) : null;
+            })()}
           </div>
-        ))}
-        <button
-          onClick={checkout}
-          className="w-full bg-red-500 shadow-md hover:shadow-xl transition-all duration-300 text-white px-4 py-2 rounded mt-4"
-        >
-          Proceed To Payment
-        </button>
+
+          {/* Sticky Checkout Button */}
+          <div className="sticky bottom-0 pt-4 bg-gray-100">
+            <button
+              onClick={checkout}
+              className="w-full bg-red-500 shadow-md hover:shadow-xl transition-all duration-300 text-white px-4 py-2 rounded"
+            >
+              Proceed To Payment
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Digital Receipt Modal */}
