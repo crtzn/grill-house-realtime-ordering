@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import supabase from "@/lib/supabaseClient";
+import { UserRound } from "lucide-react";
 
 export function CustomersToday() {
   const [totalCustomers, setTotalCustomers] = useState(0);
@@ -33,7 +34,10 @@ export function CustomersToday() {
   return (
     <Card className="shadow-md hover:shadow-xl transition-all duration-300 border-gray-200">
       <CardHeader>
-        <CardTitle>Customers Today</CardTitle>
+        <CardTitle className="flex justify-between">
+          Customers Today
+          <UserRound className="w-8 h-8 text-gray-500" />
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <p className="text-3xl font-bold">{totalCustomers}</p>

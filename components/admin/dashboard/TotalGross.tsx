@@ -133,20 +133,16 @@ export function TotalGross() {
     }).format(amount);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
-        <h3 className="text-lg font-semibold text-blue-800 mb-2">
-          Yesterday's Income
-        </h3>
-        <p className="text-3xl font-bold text-blue-900">
+    <div className="flex justify-between gap-6">
+      <div>
+        <h3 className="font-semibold text-blue-800 ">Yesterday's Income</h3>
+        <p className="font-bold text-blue-900">
           {formatCurrency(incomeData.yesterdayIncome)}
         </p>
       </div>
-      <div className="p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-lg">
-        <h3 className="text-lg font-semibold text-green-800 mb-2">
-          Today's Income
-        </h3>
-        <p className="text-3xl font-bold text-green-900">
+      <div className="">
+        <h3 className="font-semibold text-green-800">Today's Income</h3>
+        <p className="font-bold text-green-900">
           {formatCurrency(incomeData.todayIncome)}
         </p>
       </div>

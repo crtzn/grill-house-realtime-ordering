@@ -7,27 +7,27 @@ import CustomerChart from "@/components/admin/dashboard/CustomerChart";
 import TotalGross from "@/components/admin/dashboard/TotalGross";
 import MostOrderedItems from "@/components/admin/dashboard/MostOrderedMenu";
 import GrossIncomChart from "@/components/admin/dashboard/GrossIncomeChart";
+import RecentActivity from "@/components/admin/dashboard/RecentActivity";
 
 export default function DashboardPage() {
   return (
     <div className="container mx-auto px-4 py-8 w-full min-h-screen">
-      <h1 className="text-4xl font-bold text-gray-900 mb-10 border-b pb-4">
-        Seoul Meat Dashboard
-      </h1>
+      <div className="flex justify-between align-middle border-b mb-10 ">
+        <h1 className="text-4xl font-bold text-gray-900">
+          Seoul Meat Dashboard
+        </h1>
+        <TotalGross />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <TotalGross />
-            <div id="status-table-and-customer" className="flex flex-col gap-2">
-              <Suspense fallback={<LoadingPlaceholder text="Tables" />}>
-                <AvailableTables />
-              </Suspense>
-              <Suspense fallback={<LoadingPlaceholder text="Customers" />}>
-                <CustomersToday />
-              </Suspense>
-            </div>
-
+            <Suspense fallback={<LoadingPlaceholder text="Tables" />}>
+              <AvailableTables />
+            </Suspense>
+            <Suspense fallback={<LoadingPlaceholder text="Customers" />}>
+              <CustomersToday />
+            </Suspense>
             <Suspense fallback={<LoadingPlaceholder text="Ordered Items" />}>
               <MostOrderedItems />
             </Suspense>
@@ -35,7 +35,6 @@ export default function DashboardPage() {
         </div>
 
         <Suspense fallback={<LoadingPlaceholder text="Total Gross" />}>
-          {/* <TotalGross /> */}
           <GrossIncomChart />
         </Suspense>
 

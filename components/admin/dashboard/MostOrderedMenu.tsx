@@ -135,7 +135,7 @@ const MostOrderedItems: React.FC = () => {
     <Card className="shadow-md hover:shadow-xl transition-all duration-300 border-gray-200">
       <CardHeader></CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="">
           {/* Most Ordered Menu Item */}
           <div>
             <h3 className="font-semibold mb-2">Most Ordered Menu Item</h3>
