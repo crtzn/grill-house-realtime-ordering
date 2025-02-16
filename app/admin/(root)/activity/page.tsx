@@ -164,12 +164,18 @@ export default function ActivityLog() {
   }
 
   const calculateTotal = (order: any) => {
-    const packagePrice = order.package?.price || 0;
+    // Calculate package total (package price * customer count)
+    const packageTotal =
+      (order.package?.price || 0) * (order.customer_count || 1);
+
+    // Calculate addons total
     const addonsTotal =
       order.order_addons?.reduce((sum: number, addon: any) => {
-        return sum + addon.quantity * (addon.add_on?.price || 0);
+        return sum + (addon.quantity || 0) * (addon.add_on?.price || 0);
       }, 0) || 0;
-    return packagePrice + addonsTotal;
+
+    // Return the sum of package total and addons total
+    return packageTotal + addonsTotal;
   };
 
   return (
