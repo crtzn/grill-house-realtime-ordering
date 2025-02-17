@@ -4,6 +4,8 @@ import supabase from "@/lib/supabaseClient";
 import { startOfDay, endOfDay, format } from "date-fns";
 
 interface Package {
+  id: string;
+  name: string;
   price: number;
 }
 
@@ -33,8 +35,8 @@ interface SalesReportData {
   year: number;
   month?: number;
   day?: number;
-  customStartDate?: Date; // Add this line
-  customEndDate?: Date; // Add this line
+  customStartDate?: Date;
+  customEndDate?: Date;
 }
 
 const generateSalesReport = async (data: SalesReportData) => {
@@ -49,9 +51,8 @@ const generateSalesReport = async (data: SalesReportData) => {
   doc.setFontSize(12);
   let periodText = "";
 
-  // Handle custom date range
   if (data.customStartDate && data.customEndDate) {
-    // Use custom date range for the period text
+    // For both custom date range and weekly reports
     periodText = `${format(data.customStartDate, "MMM d, yyyy")} - ${format(
       data.customEndDate,
       "MMM d, yyyy"
@@ -78,7 +79,6 @@ const generateSalesReport = async (data: SalesReportData) => {
   doc.text("Summary", 20, 45);
 
   const summaryData = [
-    ["Total Orders:", summary.totalOrders.toString()],
     ["Total Customers:", summary.totalCustomers.toString()],
     ["Gross Sales:", formatCurrency(summary.grossSales)],
   ];
@@ -95,6 +95,27 @@ const generateSalesReport = async (data: SalesReportData) => {
     },
   });
 
+  // Package Details Section
+  doc.setFontSize(14);
+  doc.text("Package Details", 20, doc.lastAutoTable.finalY + 20);
+
+  const packageSummary = calculatePackageSummary(data.orders);
+  const packageData = packageSummary.map((pkg) => [
+    pkg.name,
+    pkg.quantity.toString(),
+    formatCurrency(pkg.price),
+    formatCurrency(pkg.total),
+  ]);
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 25,
+    head: [["Package Name", "Quantity", "Unit Price", "Total"]],
+    body: packageData,
+    theme: "striped",
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [51, 51, 51] },
+  });
+
   // Detailed Orders Section
   doc.setFontSize(14);
   doc.text("Order Details", 20, doc.lastAutoTable.finalY + 20);
@@ -104,8 +125,9 @@ const generateSalesReport = async (data: SalesReportData) => {
     const addonsTotal = calculateAddonsTotal(order.order_addons);
 
     return [
-      format(new Date(order.created_at), "MM/dd/yyyy HH:mm:ss"), // Added time for daily reports
+      format(new Date(order.created_at), "MM/dd/yyyy HH:mm:ss"),
       order.id,
+      order.packages.name,
       order.customer_count.toString(),
       formatCurrency(packageTotal),
       formatCurrency(addonsTotal),
@@ -116,7 +138,15 @@ const generateSalesReport = async (data: SalesReportData) => {
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 25,
     head: [
-      ["Date & Time", "Order ID", "Customers", "Package", "Add-ons", "Total"],
+      [
+        "Date & Time",
+        "Order ID",
+        "Package",
+        "Customers",
+        "Package Total",
+        "Add-ons Total",
+        "Total",
+      ],
     ],
     body: orderDetails,
     theme: "striped",
@@ -204,10 +234,31 @@ const calculateSummary = (orders: OrderWithPackage[]) => {
   });
 
   summary.averageOrderValue =
-    orders.length > 0 ? summary.grossSales / summary.totalOrders : 0;
+    orders.length > 0 ? summary.grossSales / orders.length : 0;
   summary.addonsBreakdown = Array.from(addonsMap.values());
 
   return summary;
+};
+
+const calculatePackageSummary = (orders: OrderWithPackage[]) => {
+  const packageMap = new Map();
+
+  orders.forEach((order) => {
+    const key = order.packages.id;
+    if (!packageMap.has(key)) {
+      packageMap.set(key, {
+        name: order.packages.name,
+        quantity: 0,
+        price: order.packages.price,
+        total: 0,
+      });
+    }
+    const item = packageMap.get(key);
+    item.quantity += order.customer_count;
+    item.total += order.customer_count * order.packages.price;
+  });
+
+  return Array.from(packageMap.values());
 };
 
 const calculateAddonsTotal = (addons: OrderAddon[]) => {
@@ -217,6 +268,7 @@ const calculateAddonsTotal = (addons: OrderAddon[]) => {
     }, 0) || 0
   );
 };
+
 const formatCurrency = (amount: number) => {
   return `P${new Intl.NumberFormat("en-PH", {
     style: "decimal",
@@ -237,7 +289,7 @@ export const handleDownloadPDF = async (
     let endDate: string;
 
     if (customStartDate && customEndDate) {
-      // For custom date range
+      // For both custom date range and weekly reports
       startDate = startOfDay(customStartDate).toISOString();
       endDate = endOfDay(customEndDate).toISOString();
     } else if (day) {
@@ -325,4 +377,5 @@ export const handleDownloadPDF = async (
     console.error("Error generating sales report:", error);
   }
 };
+
 export default generateSalesReport;

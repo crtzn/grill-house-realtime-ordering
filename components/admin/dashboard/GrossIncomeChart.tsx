@@ -346,6 +346,18 @@ const GrossIncomeChart: React.FC = () => {
       const month = selectedDate.getMonth() + 1;
       const day = selectedDate.getDate();
       handleDownloadPDF(year, month, day);
+    } else if (timeRange === "weekly") {
+      // Calculate the start and end of the week
+      const weekStart = new Date(selectedDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekEnd = addDays(weekStart, 6);
+      handleDownloadPDF(
+        undefined,
+        undefined,
+        undefined,
+        startOfDay(weekStart),
+        endOfDay(weekEnd)
+      );
     } else if (timeRange === "monthly") {
       handleDownloadPDF(currentYear, selectedMonth);
     } else {
