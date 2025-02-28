@@ -23,10 +23,14 @@ Supabase: An open-source Firebase alternative used as the backend-as-a-service. 
 
 Tailwind CSS: A utility-first CSS framework used to design responsive, modern, and visually appealing user interfaces quickly and efficiently. It ensures a consistent and mobile-friendly design across all system components.
 
+Vercel: The hosting platform used to deploy EasyGrill. Vercel simplifies the deployment process, providing automatic scaling, domain management, and a seamless workflow for hosting Next.js applications.
+
 System Architecture
 Frontend: Built with Next.js and TypeScript, styled using Tailwind CSS. The customer interface is accessible via QR codes, while the admin and kitchen interfaces are secured with authentication.
 
 Backend: Powered by Supabase, which provides a PostgreSQL database and real-time APIs. Data is managed through tables such as orders, order_items, menu_items, and tables, with relationships defined in the Entity-Relationship Diagram (see Appendix O).
+
+Hosting: Deployed on Vercel, ensuring fast, reliable access to the application with automatic scaling to handle traffic.
 
 Real-Time Functionality: Supabase’s real-time subscriptions ensure that updates (e.g., a customer placing an order or a kitchen staff marking it as "served") are instantly propagated to all connected clients.
 
@@ -40,7 +44,7 @@ Admin Operations: Admins manage tables, assign customers, monitor orders, and re
 Analytics: The system tracks order data and customer trends, presenting them in visual formats (e.g., bar graphs) for business decision-making.
 
 Live Demo
-You can explore the live version of EasyGrill here:
+You can explore the live version of EasyGrill hosted on Vercel:
 Admin Interface: https://grill-house-plum.vercel.app/admin  
 
 Why It Matters
@@ -56,6 +60,13 @@ Set up environment variables (e.g., Supabase URL and API key) in a .env.local fi
 Run the development server: npm run dev
 
 Access the app at http://localhost:3000.
+
+To deploy on Vercel:
+Link your repository to Vercel via the dashboard.
+
+Configure environment variables in the Vercel project settings.
+
+Deploy the app with a single click, and Vercel will handle the rest.
 
 For detailed setup instructions and deployment steps, refer to the User’s Guide (#appendix-t-users-guide) in the documentation.
 Future Enhancements
