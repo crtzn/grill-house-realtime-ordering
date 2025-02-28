@@ -3,6 +3,7 @@ EasyGrill: Real-Time Ordering and Management System
 
 About
 EasyGrill is a web-based ordering management and billing system with analytics, crafted for SeoulMeat Korean Grill House, a samgyeopsal restaurant serving unlimited Korean dishes. Built as a capstone project for our Bachelor of Science in Information Technology (BSIT) at the Polytechnic University of the Philippines – Santa Maria Campus, it modernizes the restaurant’s manual processes. By digitizing ordering and billing, EasyGrill eliminates errors, reduces staff workload, and enhances customer dining experiences through real-time functionality and actionable insights.
+
 ---
 
 Key Features
