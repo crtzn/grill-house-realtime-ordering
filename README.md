@@ -45,7 +45,7 @@ Analytics: Visualize trends in customer orders and sales via bar graphs.
 
 Live Demo
 Explore EasyGrill live on Vercel:  
-Admin: grill-house-plum.vercel.app/admin  
+Admin: https://grill-house-plum.vercel.app/admin
 
 ---
 
