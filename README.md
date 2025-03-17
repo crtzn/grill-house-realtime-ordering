@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+EasyGrill: Real-Time Ordering and Management System
+---
 
-## Getting Started
+About
+EasyGrill is a web-based ordering management and billing system with analytics, crafted for SeoulMeat Korean Grill House, a samgyeopsal restaurant serving unlimited Korean dishes. Built as a capstone project for our Bachelor of Science in Information Technology (BSIT) at the Polytechnic University of the Philippines – Santa Maria Campus, it modernizes the restaurant’s manual processes. By digitizing ordering and billing, EasyGrill eliminates errors, reduces staff workload, and enhances customer dining experiences through real-time functionality and actionable insights.
 
-First, run the development server:
+Approach: We used a monolithic frontend structure, combining customer and admin interfaces in a single Next.js codebase for simplicity and unified deployment.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Key Features
+Customer Ordering: Scan a QR code to browse and order from a digital menu on your device, with real-time status updates (pending, preparing, served).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Admin Management: Manage tables, create orders, monitor sessions, and access analytics like customer counts and sales trends.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Kitchen Workflow: Receive and update orders instantly on a kitchen screen.
 
-## Learn More
+Billing & Analytics: Automate bill calculations and gain insights into ordering patterns (daily, weekly, monthly).
 
-To learn more about Next.js, take a look at the following resources:
+Real-Time Sync: Instantly reflects updates across all interfaces.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+Tools Used
+Next.js  
 
-## Deploy on Vercel
+TypeScript  
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Supabase  
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Tailwind CSS  
+
+Vercel
+
+---
+
+How It Works
+Customers: Scan a QR code, browse the menu, and order directly from their table (max 5 items per selection).
+
+Kitchen: View and update orders in real-time on a dedicated monitor.
+
+Admins: Assign tables, monitor orders, and review analytics; generate digital receipts on checkout.
+
+Analytics: Visualize trends in customer orders and sales via bar graphs.
+
+---
+
+Live Demo
+Explore EasyGrill live on Vercel:  
+Admin: https://grill-house-plum.vercel.app/admin
+
+---
+
+Why It Matters
+EasyGrill transforms SeoulMeat’s pen-and-paper system into a streamlined, error-free process. As a capstone project, it showcases our skills in web development and real-time systems while solving real-world restaurant challenges.
+
+---
+
+Getting Started
+Run Locally
+Clone the repo: git clone <repository-url>
+
+Install dependencies: npm install
+
+Add Supabase credentials to .env.local
+
+Start the server: npm run dev
+
+Visit: http://localhost:3000
+
+---
+
+Deploy on Vercel
+Link your repo to Vercel.
+
+Set environment variables in Vercel settings.
+
+Deploy with one click.
+
+See User’s Guide (#appendix-t-users-guide) for details.
+
+---
+
+Future Enhancements
+Offline mode for uninterrupted use.
+
+Payment gateway integration.
+
+Real-time inventory tracking.
+
+---
+
+Note
+This project was developed solely for academic purposes as part of our capstone at PUP Santa Maria. It reflects our learning in solving practical problems with technology.
+
